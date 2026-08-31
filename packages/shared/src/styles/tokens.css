@@ -1,0 +1,97 @@
+/* ============================================================
+   Aegis 设计 token（方案文档 §4.1 v1.2「浅色紫渐变 SaaS」基准）
+   - 全部视觉决策集中于此：基座与所有子应用 import 同一份，
+     主题天然一致，这是 monorepo 源码共享（L1）的最直接收益
+   - 主题色三件套 --primary/--grad-1/--grad-2 由运行时 JS 覆写，
+     其余主色衍生色用 color-mix() 派生，换主题色一处生效
+   - 明暗切换：html[data-theme]，终端区恒定深色不参与切换
+   ============================================================ */
+:root {
+  /* ---- 主题色（默认：紫罗兰，运行时由主题系统覆写） ---- */
+  --primary: #7c3aed;
+  --grad-1: #7c3aed;
+  --grad-2: #c026d3;
+  --grad-btn: linear-gradient(90deg, var(--grad-1), var(--grad-2));
+  --grad-brand: linear-gradient(135deg, var(--grad-1), var(--grad-2));
+
+  /* ---- 浅色（默认）基调 ---- */
+  --bg-page: #f5f5f7;
+  --bg-card: #ffffff;
+  --bg-float: #ffffff;
+  --bg-input: #f5f6f8;
+  --input-focus-bg: #ffffff;
+  --bg-glass: rgba(255, 255, 255, 0.82);
+  --bg-drawer: rgba(255, 255, 255, 0.96);
+  /* 终端/日志恒定深色：不随主题切换（SOC 长时间读日志的护眼刚需） */
+  --bg-terminal: #0d1117;
+
+  --border: rgba(16, 16, 20, 0.08);
+  --border-strong: rgba(16, 16, 20, 0.14);
+
+  --fg: #18181b;
+  --fg-sub: #52525b;
+  --fg-muted: #71717a;
+
+  /* SOC 语义色双档制：浅色 UI 用深色档保证白底对比度 */
+  --sev-critical: #dc2626;
+  --sev-high: #ea580c;
+  --sev-medium: #d97706;
+  --sev-low: #16a34a;
+  /* 深色底（终端/暗色模式）用 vivid 档 */
+  --sev-critical-v: #f87171;
+  --sev-high-v: #fb923c;
+  --sev-medium-v: #facc15;
+  --sev-low-v: #4ade80;
+
+  /* ---- 形状与阴影 ---- */
+  --radius: 16px;      /* 卡片 */
+  --radius-ctl: 10px;  /* 控件 */
+  --shadow-card: 0 1px 2px rgba(16, 16, 20, 0.04), 0 10px 30px rgba(16, 16, 20, 0.06);
+  --shadow-card-hover: 0 2px 4px rgba(16, 16, 20, 0.05), 0 16px 40px rgba(16, 16, 20, 0.1);
+  --shadow-float: 0 4px 12px rgba(16, 16, 20, 0.08), 0 24px 64px rgba(16, 16, 20, 0.16);
+
+  --ease: 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  /* 代码与日志强制等宽：SOC 看日志对齐是刚需 */
+  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* ---- 暗色模式：token 整体替换，业务样式零改动 ---- */
+[data-theme='dark'] {
+  --bg-page: #0f1016;
+  --bg-card: #171821;
+  --bg-float: #1d1e29;
+  --bg-input: #232430;
+  --input-focus-bg: #262733;
+  --bg-glass: rgba(23, 24, 33, 0.85);
+  --bg-drawer: rgba(29, 30, 41, 0.96);
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --fg: #eceef4;
+  --fg-sub: #a7adc0;
+  --fg-muted: #7b8296;
+
+  /* 语义色切到 vivid 档，保证深底对比度 */
+  --sev-critical: #f87171;
+  --sev-high: #fb923c;
+  --sev-medium: #facc15;
+  --sev-low: #4ade80;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
+  --shadow-card-hover: 0 2px 4px rgba(0, 0, 0, 0.35), 0 16px 40px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 4px 12px rgba(0, 0, 0, 0.4), 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+
+/* ---- 无障碍模式（参考 Vben 的项目配置）---- */
+html.color-weak { filter: invert(80%) hue-rotate(180deg); }
+html.gray-mode { filter: grayscale(1); }
+
+/* ---- 滚动条 ---- */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(16, 16, 20, 0.14); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(16, 16, 20, 0.24); }
+::-webkit-scrollbar-track { background: transparent; }
+[data-theme='dark'] ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); }
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.26); }

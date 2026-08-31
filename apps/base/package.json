@@ -1,0 +1,26 @@
+{
+  "name": "@aegis/base",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Aegis 基座：登录、布局壳、主题系统、动态菜单、子应用装载",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@aegis/contract": "workspace:*",
+    "@aegis/shared": "workspace:*",
+    "@micro-zoe/micro-app": "1.0.0-rc.32",
+    "pinia": "catalog:",
+    "vue": "catalog:",
+    "vue-router": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitejs/plugin-vue": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vue-tsc": "catalog:"
+  }
+}

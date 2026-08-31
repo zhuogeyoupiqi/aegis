@@ -1,0 +1,172 @@
+import { computed, reactive, ref, watch } from 'vue'
+import { defineStore } from 'pinia'
+import type { ThemeSnapshot } from '@aegis/contract'
+
+/* ================= 主题预设（参考 Vben 的多主题色） ================= */
+export interface ThemePreset {
+  key: string
+  label: string
+  primary: string
+  gradFrom: string
+  gradTo: string
+}
+
+export const THEME_PRESETS: ThemePreset[] = [
+  { key: 'violet', label: '紫罗兰', primary: '#7c3aed', gradFrom: '#7c3aed', gradTo: '#c026d3' },
+  { key: 'blue',   label: '海空蓝', primary: '#2563eb', gradFrom: '#2563eb', gradTo: '#06b6d4' },
+  { key: 'cyan',   label: '青碧',   primary: '#0891b2', gradFrom: '#0891b2', gradTo: '#22d3ee' },
+  { key: 'green',  label: '翡翠绿', primary: '#059669', gradFrom: '#059669', gradTo: '#84cc16' },
+  { key: 'amber',  label: '琥珀橙', primary: '#d97706', gradFrom: '#d97706', gradTo: '#f59e0b' },
+  { key: 'rose',   label: '绯红',   primary: '#e11d48', gradFrom: '#e11d48', gradTo: '#fb7185' },
+  { key: 'pink',   label: '洋红',   primary: '#db2777', gradFrom: '#db2777', gradTo: '#f472b6' },
+]
+
+export type ThemeMode = 'light' | 'dark' | 'auto'
+export type NavLayout = 'side' | 'top' | 'mixed'
+
+/** 全局外观偏好（持久化到 localStorage） */
+export interface AppPrefs {
+  mode: ThemeMode
+  color: string
+  layout: NavLayout
+  showTabs: boolean
+  colorWeak: boolean
+  gray: boolean
+}
+
+const PREFS_KEY = 'aegis:prefs'
+const DEFAULT_PREFS: AppPrefs = {
+  mode: 'light',
+  color: 'violet',
+  layout: 'side',
+  showTabs: true,
+  colorWeak: false,
+  gray: false,
+}
+
+function loadPrefs(): AppPrefs {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY)
+    // 合并而不是直接用存档：升级新增偏好项时不至于缺字段
+    return raw ? { ...DEFAULT_PREFS, ...(JSON.parse(raw) as Partial<AppPrefs>) } : { ...DEFAULT_PREFS }
+  } catch {
+    return { ...DEFAULT_PREFS }
+  }
+}
+
+/** 标签页条目 */
+export interface TagItem {
+  path: string
+  title: string
+  appCode: string
+  affix?: boolean
+}
+
+export interface ToastItem {
+  id: number
+  type: 'ok' | 'bad' | 'info'
+  text: string
+}
+
+let toastSeq = 0
+
+export const useAppStore = defineStore('app', () => {
+  /* ---------- 主题 ---------- */
+  // 跟随系统：监听操作系统外观变化，auto 模式下实时重算
+  const media = window.matchMedia('(prefers-color-scheme: dark)')
+  const systemDark = ref(media.matches)
+  media.addEventListener('change', (e) => { systemDark.value = e.matches })
+
+  const prefs = reactive<AppPrefs>(loadPrefs())
+
+  const resolvedMode = computed<'light' | 'dark'>(() =>
+    prefs.mode === 'auto' ? (systemDark.value ? 'dark' : 'light') : prefs.mode,
+  )
+  const preset = computed(() => THEME_PRESETS.find((p) => p.key === prefs.color) ?? THEME_PRESETS[0])
+
+  /** 下发给子应用的主题快照（契约包类型） */
+  const themeSnapshot = computed<ThemeSnapshot>(() => ({
+    mode: resolvedMode.value,
+    primary: preset.value.primary,
+    gradFrom: preset.value.gradFrom,
+    gradTo: preset.value.gradTo,
+  }))
+
+  /** 把偏好落到 DOM：data-theme + 主题色变量 + 无障碍 class */
+  function applyAppearance(): void {
+    const root = document.documentElement
+    root.dataset.theme = resolvedMode.value
+    root.style.setProperty('--primary', preset.value.primary)
+    root.style.setProperty('--grad-1', preset.value.gradFrom)
+    root.style.setProperty('--grad-2', preset.value.gradTo)
+    root.classList.toggle('color-weak', prefs.colorWeak)
+    root.classList.toggle('gray-mode', prefs.gray)
+  }
+
+  watch([resolvedMode, preset, () => prefs.colorWeak, () => prefs.gray], applyAppearance)
+  watch(prefs, () => localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)), { deep: true })
+
+  // store 实例化即应用一次，避免进入主布局后才闪切
+  applyAppearance()
+
+  function resetPrefs(): void {
+    Object.assign(prefs, DEFAULT_PREFS)
+  }
+
+  /* ---------- 标签页 ---------- */
+  const tabs = ref<TagItem[]>([
+    { path: '/workbench', title: '工作台', appCode: 'base', affix: true },
+  ])
+
+  function addTab(tab: TagItem): void {
+    if (!tabs.value.some((t) => t.path === tab.path)) tabs.value.push(tab)
+  }
+
+  function removeTab(path: string): void {
+    tabs.value = tabs.value.filter((t) => !(t.path === path && !t.affix))
+  }
+
+  function closeOthers(path: string): void {
+    tabs.value = tabs.value.filter((t) => t.affix || t.path === path)
+  }
+
+  /* ---------- 刷新（配合 TagsView 右键「刷新」重建 micro-app） ---------- */
+  const refreshKey = ref(0)
+  function refresh(): void {
+    refreshKey.value++
+  }
+
+  /* ---------- 布局状态 ---------- */
+  const sidebarCollapsed = ref(false)
+  /** mixed 布局下当前激活的顶部分组 key */
+  const activeTopGroup = ref('')
+  const settingsOpen = ref(false)
+
+  /* ---------- Toast ---------- */
+  const toasts = ref<ToastItem[]>([])
+  function pushToast(text: string, type: ToastItem['type'] = 'ok'): void {
+    const id = ++toastSeq
+    toasts.value.push({ id, type, text })
+    setTimeout(() => { toasts.value = toasts.value.filter((t) => t.id !== id) }, 2800)
+  }
+
+  return {
+    prefs,
+    systemDark,
+    resolvedMode,
+    preset,
+    themeSnapshot,
+    resetPrefs,
+    tabs,
+    addTab,
+    removeTab,
+    closeOthers,
+    refreshKey,
+    refresh,
+    sidebarCollapsed,
+    activeTopGroup,
+    settingsOpen,
+    toasts,
+    pushToast,
+  }
+})

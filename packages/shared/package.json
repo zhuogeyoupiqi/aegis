@@ -1,0 +1,16 @@
+{
+  "name": "@aegis/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "共享逻辑层：设计 token 样式、通用工具、子应用主题桥（方案文档 5.1 L1 源码共享）",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles/*": "./src/styles/*"
+  },
+  "dependencies": {
+    "@aegis/contract": "workspace:*",
+    "vue": "catalog:"
+  }
+}
