@@ -11,6 +11,7 @@ export interface LoginResult {
   user: UserSnapshot
 }
 
+/** 登录：当前转发 mock，接后端时只改这一处实现 */
 export function loginApi(account: string, password: string): Promise<LoginResult> {
   return authMock(account, password)
 }

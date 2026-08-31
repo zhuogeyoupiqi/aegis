@@ -5,6 +5,12 @@ import { useUserStore } from '@/stores/user'
 import LoginView from '@/views/LoginView.vue'
 import MainLayout from '@/layouts/MainLayout.vue'
 
+/**
+ * 基座路由表。
+ * meta 约定：title 存 i18n 词条 key；appCode 标记页面归属（标签着色用）；
+ * menuPrefix=true 表示「该前缀下的页面是否真实存在由菜单数据决定」，
+ * 守卫里据此把菜单标记为 stub 的入口重定向到统一占位页。
+ */
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -73,6 +79,7 @@ export function normalizeTabPath(fullPath: string): string {
   return qs ? `${path}?${qs}` : path
 }
 
+/** 全局前置守卫：登录态校验 → 菜单兜底加载 → stub 入口重定向 → 标签页登记 */
 router.beforeEach(async (to) => {
   const userStore = useUserStore()
 

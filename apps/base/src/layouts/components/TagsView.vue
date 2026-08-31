@@ -20,6 +20,7 @@ const APP_COLORS: Record<string, string> = {
   'system-admin': '#f59e0b',
 }
 
+/** 标签识别色：按 appCode 取子应用专属色，未登记的用 base 蓝 */
 function tabColor(tab: TagItem): string {
   return APP_COLORS[tab.appCode] || '#3b82f6'
 }
@@ -29,7 +30,7 @@ function isActive(tab: TagItem): boolean {
   return tab.path === normalizeTabPath(route.fullPath)
 }
 
-/** 关闭标签：若关的是当前页，跳到相邻标签 */
+/** 关闭标签：若关的是当前页，跳到相邻标签（优先右侧，越界回左侧） */
 function closeTab(tab: TagItem): void {
   if (tab.affix) return
   const idx = appStore.tabs.findIndex((t) => t.path === tab.path)
@@ -40,6 +41,7 @@ function closeTab(tab: TagItem): void {
   }
 }
 
+/** 点击标签切换页面 */
 function clickTab(tab: TagItem): void {
   router.push(tab.path)
 }
@@ -47,6 +49,7 @@ function clickTab(tab: TagItem): void {
 /* ---------- 右键菜单 ---------- */
 const ctx = reactive({ visible: false, x: 0, y: 0, target: null as TagItem | null })
 
+/** 打开右键菜单：坐标夹在视口内，避免在屏幕边缘弹出后被裁掉 */
 function openCtx(e: MouseEvent, tab: TagItem): void {
   e.preventDefault()
   ctx.target = tab
@@ -57,17 +60,20 @@ function openCtx(e: MouseEvent, tab: TagItem): void {
 function closeCtx(): void {
   ctx.visible = false
 }
+/** 点击任意处收起右键菜单（document 级监听，随组件卸载摘除） */
 function onDocClick(): void {
   closeCtx()
 }
 onMounted(() => document.addEventListener('click', onDocClick))
 onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
 
+/** 右键「刷新」：refreshKey 递增触发当前页整体重建 */
 function ctxRefresh(): void {
   if (ctx.target) appStore.pushToast(t('tags.refreshToast', { title: t(ctx.target.title) }))
   appStore.refresh()
   closeCtx()
 }
+/** 右键「固定」：affix 标记取反，固定后不可关闭 */
 function ctxPin(): void {
   // 固定 = 把该标签标记为 affix：不可关闭、常驻最前语义
   const tab = appStore.tabs.find((t) => t.path === ctx.target?.path)
@@ -82,10 +88,12 @@ function ctxPin(): void {
   }
   closeCtx()
 }
+/** 右键「关闭」：复用标签关闭逻辑 */
 function ctxClose(): void {
   if (ctx.target) closeTab(ctx.target)
   closeCtx()
 }
+/** 右键「关闭其他」：保留 affix 与目标标签，被关掉的是当前页时跳到目标 */
 function ctxCloseOthers(): void {
   if (!ctx.target) return
   appStore.closeOthers(ctx.target.path)
@@ -110,8 +118,8 @@ function ctxCloseOthers(): void {
         <span class="tab__strip" />
         <!-- 标签标题存的是词条 key，这里解析渲染（语言切换响应式跟随） -->
         <span class="tab__title">{{ t(tab.title) }}</span>
-        <span v-if="tab.affix" class="tab__pin" title="已固定"><AppIcon name="lock" :size="10" /></span>
-        <span v-else class="tab__close" title="关闭" @click.stop="closeTab(tab)">
+        <span v-if="tab.affix" class="tab__pin" :title="t('tags.pinned')"><AppIcon name="lock" :size="10" /></span>
+        <span v-else class="tab__close" :title="t('tags.close')" @click.stop="closeTab(tab)">
           <AppIcon name="close" :size="10" />
         </span>
       </div>

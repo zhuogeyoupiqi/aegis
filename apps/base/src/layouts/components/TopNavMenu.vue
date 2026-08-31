@@ -17,6 +17,7 @@ const { t } = useI18n()
 const openGroup = ref('')
 const navEl = ref<HTMLElement | null>(null)
 
+/** 点击导航区域外时收起 top 布局的分组下拉（简易 outside-click 检测） */
 function onDocClick(e: MouseEvent): void {
   if (navEl.value && !navEl.value.contains(e.target as Node)) openGroup.value = ''
 }
@@ -32,6 +33,7 @@ function isGroupActive(g: MenuGroup): boolean {
   return item?.groupKey === g.key
 }
 
+/** 分组点击在两种布局下语义不同：mixed 切换侧栏分组并落位，top 开合下拉 */
 function groupClick(g: MenuGroup): void {
   if (appStore.prefs.layout === 'mixed') {
     // mixed：切换侧栏展示的分组，并跳到该组第一项
@@ -44,6 +46,7 @@ function groupClick(g: MenuGroup): void {
   }
 }
 
+/** 下拉里的菜单项点击：跳转并顺带收起下拉 */
 function itemClick(path: string): void {
   openGroup.value = ''
   router.push(path)

@@ -11,6 +11,7 @@ const router = createRouter({
       path: '/syslog-sender',
       name: 'syslog-sender',
       component: SyslogSender,
+      // 子应用内 title 只做调试参考：基座标签页/面包屑的标题由基座词条表决定
       meta: { title: 'Syslog 发包器' },
     },
     // 后续工具（日志解析器等）在这里追加路由

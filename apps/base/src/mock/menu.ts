@@ -17,6 +17,11 @@ const registry: Partial<Record<string, AppRegistration>> = {
   },
 }
 
+/**
+ * 分组化菜单树。key 是国际化与路由联动的锚点：
+ * 展示层按 menu.groups.<key> / menu.items.<key> 查词条，下面的 title 只是词条缺失时的兜底。
+ * stub=true 表示该入口尚未开发，路由守卫会把它重定向到统一占位页。
+ */
 const groups: MenuGroup[] = [
   {
     key: 'common',
@@ -67,5 +72,6 @@ const groups: MenuGroup[] = [
 ]
 
 export function menuMock(): Promise<{ groups: MenuGroup[]; registry: Partial<Record<string, AppRegistration>> }> {
+  // 250ms 模拟网络开销，让骨架/加载态在演示时真实可见
   return delay({ groups, registry }, 250)
 }

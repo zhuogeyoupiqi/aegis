@@ -49,6 +49,7 @@ const DEFAULT_PREFS: AppPrefs = {
   lang: 'zh-CN',
 }
 
+/** 从 localStorage 恢复偏好；存档损坏时静默回默认值（外观类偏好不值得抛错误） */
 function loadPrefs(): AppPrefs {
   try {
     const raw = localStorage.getItem(PREFS_KEY)
@@ -79,9 +80,11 @@ export const useAppStore = defineStore('app', () => {
 
   const prefs = reactive<AppPrefs>(loadPrefs())
 
+  /** auto 在这里就解析成明/暗：后续所有消费方（DOM、antd、子应用快照）只拿结果，不重复判断 */
   const resolvedMode = computed<'light' | 'dark'>(() =>
     prefs.mode === 'auto' ? (systemDark.value ? 'dark' : 'light') : prefs.mode,
   )
+  /** 当前主题色预设；key 对不上时兜底第一个，保证任何存档都能渲染 */
   const preset = computed(() => THEME_PRESETS.find((p) => p.key === prefs.color) ?? THEME_PRESETS[0])
 
   /** 下发给子应用的主题快照（契约包类型） */
@@ -116,6 +119,7 @@ export const useAppStore = defineStore('app', () => {
   // store 实例化即应用一次，避免进入主布局后才闪切
   applyAppearance()
 
+  /** 恢复默认外观；语言也一并回中文（语言属于偏好的组成部分而非运行状态） */
   function resetPrefs(): void {
     Object.assign(prefs, DEFAULT_PREFS)
   }
@@ -126,20 +130,24 @@ export const useAppStore = defineStore('app', () => {
     { path: '/workbench', title: 'menu.items.workbench', appCode: 'base', affix: true },
   ])
 
+  /** 新增标签（按 path 去重）：path 由路由守卫经 normalizeTabPath 洗过，可作身份键 */
   function addTab(tab: TagItem): void {
     if (!tabs.value.some((t) => t.path === tab.path)) tabs.value.push(tab)
   }
 
+  /** 关闭单个标签；affix（常驻工作台）不可关 */
   function removeTab(path: string): void {
     tabs.value = tabs.value.filter((t) => !(t.path === path && !t.affix))
   }
 
+  /** 关闭除指定标签外的全部（保留 affix） */
   function closeOthers(path: string): void {
     tabs.value = tabs.value.filter((t) => t.affix || t.path === path)
   }
 
   /* ---------- 刷新（配合 TagsView 右键「刷新」重建 micro-app） ---------- */
   const refreshKey = ref(0)
+  /** 递增刷新键：MainLayout 用它作 router-view 的 key，key 变 = 整页重建 */
   function refresh(): void {
     refreshKey.value++
   }

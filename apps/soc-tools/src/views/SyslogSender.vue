@@ -116,6 +116,7 @@ const gradColors = computed(() => ({
 }))
 
 /* ---------- 渲染逻辑 ---------- */
+/** 随机生成源 IP：三成概率外网，贴近真实攻击来源分布 */
 function randomIp(): { ip: string; ext: boolean } {
   // 三成概率外网源，贴近真实攻击来源分布
   const ext = Math.random() < 0.3
@@ -189,6 +190,7 @@ function insertVar(v: string): void {
 }
 
 /* ---------- 发送模拟 ---------- */
+/** 把一次发送结果追加进终端：转义 + IP 高亮 + 行数上限 + 自动滚动 */
 function appendLine(r: RenderResult, seq: number, isFail: boolean): void {
   const lv = sevLevel(r.evt.sev)
   const html = escapeHtml(r.text).replace(
@@ -213,6 +215,7 @@ function appendLine(r: RenderResult, seq: number, isFail: boolean): void {
   }
 }
 
+/** 重算耗时与速率：节拍内即时更新 + 300ms 定时器兜底（发送结束后速率定格） */
 function updateStats(): void {
   elapsed.value = (Date.now() - startTime.value) / 1000
   rate.value = elapsed.value > 0 ? sent.value / elapsed.value : 0
@@ -251,6 +254,7 @@ function tick(): void {
   updateStats()
 }
 
+/** 启停发送的总入口：停止 / 白名单拦截 / 组装参数并启动节拍定时器 */
 function toggleSend(): void {
   if (sending.value) {
     stopSend(false)
@@ -274,6 +278,7 @@ function toggleSend(): void {
   statsTimer = setInterval(updateStats, 300)
 }
 
+/** 清空终端日志（不影响统计数字） */
 function clearLogs(): void {
   logs.value = []
 }

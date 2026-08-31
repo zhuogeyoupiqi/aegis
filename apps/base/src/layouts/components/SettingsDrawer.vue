@@ -8,6 +8,7 @@ import AppIcon from '@/components/AppIcon.vue'
 const appStore = useAppStore()
 const { t } = useI18n()
 
+/** 选项数组用 computed 生成：label 走词条，切语言时选项文案跟着变 */
 const MODES = computed(() => [
   { value: 'light' as ThemeMode, label: t('settings.light') },
   { value: 'dark' as ThemeMode, label: t('settings.dark') },
