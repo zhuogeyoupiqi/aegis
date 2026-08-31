@@ -119,7 +119,8 @@ export default {
     },
     checklist: {
       monorepo: 'pnpm monorepo + catalog for unified dependency versions',
-      contract: '@aegis/contract package (shared types & constants between base and children)',
+      // literal @ must be escaped as {'@'} in vue-i18n message format
+      contract: "{'@'}aegis/contract package (shared types & constants between base and children)",
       loginMenu: 'Base login + dynamic menu (mocked data, swappable to real API in the api layer)',
       theme: 'Theme system: 7 accent colors × light/dark × system × 3 layouts',
       tags: 'TagsView multi-tabs: switch / close / context menu / child-app coloring',

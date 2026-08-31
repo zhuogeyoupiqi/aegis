@@ -119,7 +119,8 @@ export default {
     },
     checklist: {
       monorepo: 'pnpm monorepo + catalog 统一依赖版本',
-      contract: '@aegis/contract 契约包（基座/子应用共享类型与常量）',
+      // @ 在 vue-i18n 消息格式里是 linked-message 语法起始符，字面 @ 必须写成 {'@'}
+      contract: "{'@'}aegis/contract 契约包（基座/子应用共享类型与常量）",
       loginMenu: '基座登录 + 动态菜单（mock 数据，api 层可平滑换真实接口）',
       theme: '主题系统：7 主题色 × 明暗 × 跟随系统 × 三种导航布局',
       tags: 'TagsView 多标签：切换 / 关闭 / 右键菜单 / 子应用着色',
