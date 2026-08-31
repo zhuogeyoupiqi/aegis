@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useMenuStore } from '@/stores/menu'
 import AppIcon from '@/components/AppIcon.vue'
@@ -10,6 +11,7 @@ const appStore = useAppStore()
 const menuStore = useMenuStore()
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 
 /** top 布局当前展开下拉的分组 key（点击外部关闭） */
 const openGroup = ref('')
@@ -21,12 +23,12 @@ function onDocClick(e: MouseEvent): void {
 onMounted(() => document.addEventListener('click', onDocClick))
 onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
 
-/** 分组是否高亮：mixed 看激活分组，top 看当前路由归属 */
+/** 分组是否高亮：mixed 看激活分组，top 看当前路由归属（stub 页按 query.item 对回） */
 function isGroupActive(g: MenuGroup): boolean {
   if (appStore.prefs.layout === 'mixed') return appStore.activeTopGroup === g.key
   const item =
     menuStore.findItem(route.path) ??
-    menuStore.flatItems.find((i) => route.path === '/coming-soon' && i.title === route.query.title)
+    menuStore.flatItems.find((i) => route.path === '/coming-soon' && i.key === route.query.item)
   return item?.groupKey === g.key
 }
 
@@ -57,7 +59,7 @@ function itemClick(path: string): void {
       :class="{ active: isGroupActive(g) }"
       @click="groupClick(g)"
     >
-      <span>{{ g.title }}</span>
+      <span>{{ t(`menu.groups.${g.key}`) }}</span>
       <AppIcon v-if="appStore.prefs.layout === 'top'" name="chevronDown" :size="12" />
 
       <!-- top 布局的二级菜单下拉 -->
@@ -69,7 +71,7 @@ function itemClick(path: string): void {
           @click.stop="itemClick(item.path)"
         >
           <AppIcon :name="item.icon || 'apps'" :size="14" />
-          <span>{{ item.title }}</span>
+          <span>{{ t(`menu.items.${item.key}`) }}</span>
         </div>
       </div>
     </div>

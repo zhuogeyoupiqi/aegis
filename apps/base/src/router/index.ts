@@ -8,7 +8,7 @@ import MainLayout from '@/layouts/MainLayout.vue'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/login', name: 'login', component: LoginView, meta: { title: '登录' } },
+    { path: '/login', name: 'login', component: LoginView, meta: { title: 'route.login' } },
     {
       path: '/',
       component: MainLayout,
@@ -18,38 +18,38 @@ const router = createRouter({
           path: 'workbench',
           name: 'workbench',
           component: () => import('@/views/WorkbenchView.vue'),
-          meta: { title: '工作台', appCode: 'base' },
+          meta: { title: 'menu.items.workbench', appCode: 'base' },
         },
         {
           // soc 前缀全部交给子应用容器：把 /soc/xxx 映射为子应用 hash 路由 #/xxx
           path: 'soc/:rest(.*)*',
           name: 'soc-child',
           component: () => import('@/views/ChildAppView.vue'),
-          meta: { title: 'Syslog 发包器', appCode: 'soc-tools', menuPrefix: true },
+          meta: { title: 'menu.items.syslog-sender', appCode: 'soc-tools', menuPrefix: true },
         },
         {
           path: 'asset/:rest(.*)*',
           name: 'asset-stub',
           component: () => import('@/views/StubView.vue'),
-          meta: { title: '建设中', menuPrefix: true },
+          meta: { title: 'route.comingSoon', menuPrefix: true },
         },
         {
           path: 'ai/:rest(.*)*',
           name: 'ai-stub',
           component: () => import('@/views/StubView.vue'),
-          meta: { title: '建设中', menuPrefix: true },
+          meta: { title: 'route.comingSoon', menuPrefix: true },
         },
         {
           path: 'system/:rest(.*)*',
           name: 'system-stub',
           component: () => import('@/views/StubView.vue'),
-          meta: { title: '建设中', menuPrefix: true },
+          meta: { title: 'route.comingSoon', menuPrefix: true },
         },
         {
           path: 'coming-soon',
           name: 'coming-soon',
           component: () => import('@/views/StubView.vue'),
-          meta: { title: '建设中' },
+          meta: { title: 'route.comingSoon' },
         },
       ],
     },
@@ -58,7 +58,7 @@ const router = createRouter({
 })
 
 /**
- * 标签页路径规范化：只保留 path + 我们自己的语义 query（stub 页的 title/group）。
+ * 标签页路径规范化：只保留 path + 我们自己的语义 query（stub 页的 item/group 菜单 key）。
  * 基座 URL 可能被外部写入无关 query（如微前端路由同步的残留），若参与标签身份，
  * 同一页面会裂成多个标签——这里统一洗掉。
  */
@@ -67,7 +67,7 @@ export function normalizeTabPath(fullPath: string): string {
   const [path, search] = pathAndQuery.split('?')
   const source = new URLSearchParams(search ?? '')
   const kept = new URLSearchParams()
-  if (source.get('title')) kept.set('title', source.get('title') as string)
+  if (source.get('item')) kept.set('item', source.get('item') as string)
   if (source.get('group')) kept.set('group', source.get('group') as string)
   const qs = kept.toString()
   return qs ? `${path}?${qs}` : path
@@ -85,18 +85,21 @@ router.beforeEach(async (to) => {
     const menuStore = useMenuStore()
     if (!menuStore.loaded) await menuStore.ensureLoaded()
 
-    // stub 入口重定向到统一占位页：菜单数据决定哪个页面「真实存在」
+    // stub 入口重定向到统一占位页：菜单数据决定哪个页面「真实存在」。
+    // query 带菜单 key（而非文案）：文案由展示层查词条，切语言后仍正确
     if (to.matched.some((r) => r.meta.menuPrefix)) {
       const item = menuStore.findItem(to.path)
       if (item?.stub) {
-        return { path: '/coming-soon', query: { title: item.title, group: item.groupTitle } }
+        return { path: '/coming-soon', query: { item: item.key, group: item.groupKey } }
       }
     }
   }
 
-  // 打开新页面时顺手把标签页记录上（标题优先取菜单语义，如 stub 的原始标题）
+  // 打开新页面时顺手把标签页记录上。标签标题存 i18n 词条 key：
+  // 语言切换时 TagsView 重新 t() 即可跟随，无需改写已存标签
   const appStore = useAppStore()
-  const title = (to.query.title as string) || (to.meta.title as string)
+  const itemKey = to.query.item as string | undefined
+  const title = itemKey ? `menu.items.${itemKey}` : (to.meta.title as string | undefined)
   if (title && to.name !== 'login') {
     appStore.addTab({
       path: normalizeTabPath(to.fullPath),

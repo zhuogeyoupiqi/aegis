@@ -1,45 +1,53 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useUserStore } from '@/stores/user'
+import { useAppStore } from '@/stores/app'
 import { useMenuStore, type FlatMenuItem } from '@/stores/menu'
 import AppIcon from '@/components/AppIcon.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
+const appStore = useAppStore()
 const menuStore = useMenuStore()
+const { t } = useI18n()
 
+/** 按时段问候（词条表驱动，新增时段只改语言包） */
 const greeting = computed(() => {
   const h = new Date().getHours()
-  if (h < 5) return '夜深了'
-  if (h < 11) return '早上好'
-  if (h < 13) return '中午好'
-  if (h < 18) return '下午好'
-  return '晚上好'
+  if (h < 5) return t('workbench.greet.night')
+  if (h < 11) return t('workbench.greet.morning')
+  if (h < 13) return t('workbench.greet.noon')
+  if (h < 18) return t('workbench.greet.afternoon')
+  return t('workbench.greet.evening')
 })
 
-const today = new Date().toLocaleDateString('zh-CN', {
-  year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
-})
+/** 日期展示跟随界面语言（中文「8月31日 星期一」/ 英文 "Monday, August 31, 2026"） */
+const today = computed(() =>
+  new Date().toLocaleDateString(appStore.prefs.lang === 'en-US' ? 'en-US' : 'zh-CN', {
+    year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
+  }),
+)
 
-const stats = [
-  { icon: 'zap', label: '内置工具', value: '6' },
-  { icon: 'activity', label: '日志样本', value: '1,284' },
-  { icon: 'syslog', label: '累计发包', value: '3,208' },
-  { icon: 'assets', label: '知识条目', value: '12' },
-]
+const stats = computed(() => [
+  { icon: 'zap', label: t('workbench.stats.tools'), value: '6' },
+  { icon: 'activity', label: t('workbench.stats.samples'), value: '1,284' },
+  { icon: 'syslog', label: t('workbench.stats.sent'), value: '3,208' },
+  { icon: 'assets', label: t('workbench.stats.knowledge'), value: '12' },
+])
 
 /** 第 1 周验证清单：交付自检用，后续迭代替换为迭代看板 */
-const checklist = [
-  { label: 'pnpm monorepo + catalog 统一依赖版本', done: true },
-  { label: '@aegis/contract 契约包（基座/子应用共享类型与常量）', done: true },
-  { label: '基座登录 + 动态菜单（mock 数据，api 层可平滑换真实接口）', done: true },
-  { label: '主题系统：7 主题色 × 明暗 × 跟随系统 × 三种导航布局', done: true },
-  { label: 'TagsView 多标签：切换 / 关闭 / 右键菜单 / 子应用着色', done: true },
-  { label: 'Vite 子应用 micro-app iframe 沙箱装载（切到 Syslog 发包器验证）', done: true },
-  { label: 'Syslog 发包器：模板渲染 + 模拟发送（在子应用页面操作）', done: true },
-  { label: '后端接口与数据库（第 2 周起接入，当前全 mock）', done: false },
-]
+const checklist = computed(() => [
+  { label: t('workbench.checklist.monorepo'), done: true },
+  { label: t('workbench.checklist.contract'), done: true },
+  { label: t('workbench.checklist.loginMenu'), done: true },
+  { label: t('workbench.checklist.theme'), done: true },
+  { label: t('workbench.checklist.tags'), done: true },
+  { label: t('workbench.checklist.microApp'), done: true },
+  { label: t('workbench.checklist.syslog'), done: true },
+  { label: t('workbench.checklist.backend'), done: false },
+])
 
 function go(item: FlatMenuItem): void {
   router.push(item.path)
@@ -51,8 +59,8 @@ function go(item: FlatMenuItem): void {
     <!-- 问候横幅 -->
     <section class="hello panel">
       <div class="hello__main">
-        <h1>{{ greeting }}，{{ userStore.userInfo?.nickname || '同学' }}</h1>
-        <p>{{ today }} · MVP 第 1 周验证版：微前端骨架 + 主题系统 + 第一个 SOC 工具已就位，后端尚未接入。</p>
+        <h1>{{ greeting }}，{{ userStore.userInfo?.nickname || t('workbench.greet.fallback') }}</h1>
+        <p>{{ t('workbench.subtitle', { date: today }) }}</p>
       </div>
       <a-tag class="hello__badge" color="purple">v0.1.0</a-tag>
     </section>
@@ -73,8 +81,8 @@ function go(item: FlatMenuItem): void {
       <section class="panel">
         <div class="panel-head">
           <AppIcon name="workbench" :size="15" />
-          <h2>快捷入口</h2>
-          <span class="sub">点击直达 · 灰色项后续迭代开放</span>
+          <h2>{{ t('workbench.quickEntry') }}</h2>
+          <span class="sub">{{ t('workbench.quickEntrySub') }}</span>
         </div>
         <div class="panel-body entries">
           <button
@@ -85,9 +93,9 @@ function go(item: FlatMenuItem): void {
             @click="go(item)"
           >
             <span class="entry__icon"><AppIcon :name="item.icon || 'apps'" :size="17" /></span>
-            <b>{{ item.title }}</b>
-            <span class="entry__group">{{ item.groupTitle }}</span>
-            <a-tag v-if="item.stub" class="entry__badge">建设中</a-tag>
+            <b>{{ t(`menu.items.${item.key}`) }}</b>
+            <span class="entry__group">{{ t(`menu.groups.${item.groupKey}`) }}</span>
+            <a-tag v-if="item.stub" class="entry__badge">{{ t('workbench.building') }}</a-tag>
           </button>
         </div>
       </section>
@@ -96,8 +104,8 @@ function go(item: FlatMenuItem): void {
       <section class="panel">
         <div class="panel-head">
           <AppIcon name="checkCircle" :size="15" />
-          <h2>第 1 周验证清单</h2>
-          <span class="sub">对照方案文档 §7 MVP 计划</span>
+          <h2>{{ t('workbench.checklistTitle') }}</h2>
+          <span class="sub">{{ t('workbench.checklistSub') }}</span>
         </div>
         <div class="panel-body checklist">
           <div v-for="c in checklist" :key="c.label" class="check" :class="{ done: c.done }">
@@ -122,11 +130,7 @@ function go(item: FlatMenuItem): void {
 .hello p { margin-top: 6px; font-size: 12.5px; color: var(--fg-muted); }
 .hello__badge {
   margin-left: auto; flex: none;
-  padding: 3px 11px; border-radius: 12px;
   font-family: var(--font-mono); font-size: 11.5px;
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
 }
 
 .stats {
@@ -174,11 +178,8 @@ function go(item: FlatMenuItem): void {
 .entry.stub { opacity: 0.62; }
 .entry__badge {
   position: absolute; top: 9px; right: 9px;
-  padding: 0 6px; border-radius: 8px;
+  margin: 0;
   font-size: 10px; line-height: 16px;
-  color: var(--fg-muted);
-  background: var(--bg-card);
-  border: 1px solid var(--border-strong);
 }
 
 .checklist { display: grid; gap: 4px; }

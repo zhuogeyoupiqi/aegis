@@ -1,14 +1,28 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 
-// stub 重定向会带上原始菜单语义：query.title / query.group
-const title = computed(() => (route.query.title as string) || '该模块')
-const group = computed(() => (route.query.group as string) || '')
+/**
+ * 标题与分组都从 query 里的菜单 key 解析词条（而不是显示字符串）：
+ * 语言切换后无需改 URL，标题自动跟随新语言。
+ */
+const title = computed(() => {
+  const itemKey = route.query.item as string | undefined
+  return itemKey ? t(`menu.items.${itemKey}`) : t('stub.title')
+})
+const group = computed(() => {
+  const groupKey = route.query.group as string | undefined
+  return groupKey ? t(`menu.groups.${groupKey}`) : ''
+})
+
+/** 正文按「有无分组」用两条词条，分组名进插值，语序由各语言包自己控制 */
+const text = computed(() => (group.value ? t('stub.text', { group: group.value }) : t('stub.textNoGroup')))
 </script>
 
 <template>
@@ -22,16 +36,13 @@ const group = computed(() => (route.query.group as string) || '')
         <h1>{{ title }}</h1>
       </template>
       <template #subTitle>
-        <p class="stub__text">
-          {{ group ? `「${group}」下的 ` : '' }}该模块在后续迭代开放，
-          当前入口为 MVP 第 1 周验证范围外的占位。
-        </p>
-        <p class="stub__sub">菜单结构已按方案文档 §6 预置，接口与页面将按迭代计划逐步补齐。</p>
+        <p class="stub__text">{{ text }}</p>
+        <p class="stub__sub">{{ t('stub.sub') }}</p>
       </template>
       <template #extra>
         <a-button type="primary" @click="router.push('/workbench')">
           <template #icon><AppIcon name="chevronRight" :size="13" /></template>
-          返回工作台
+          {{ t('stub.back') }}
         </a-button>
       </template>
     </a-result>

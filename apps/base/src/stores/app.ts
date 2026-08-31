@@ -2,6 +2,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type { ThemeSnapshot } from '@aegis/contract'
 import { toast } from '@aegis/shared'
+import { setI18nLocale, type Lang } from '@/locales'
 
 /* ================= 主题预设（参考 Vben 的多主题色） ================= */
 export interface ThemePreset {
@@ -33,6 +34,8 @@ export interface AppPrefs {
   showTabs: boolean
   colorWeak: boolean
   gray: boolean
+  /** 界面语言：持久化，并随主题一起下发子应用 */
+  lang: Lang
 }
 
 const PREFS_KEY = 'aegis:prefs'
@@ -43,6 +46,7 @@ const DEFAULT_PREFS: AppPrefs = {
   showTabs: true,
   colorWeak: false,
   gray: false,
+  lang: 'zh-CN',
 }
 
 function loadPrefs(): AppPrefs {
@@ -55,7 +59,7 @@ function loadPrefs(): AppPrefs {
   }
 }
 
-/** 标签页条目 */
+/** 标签页条目。title 存 i18n 词条 key（如 menu.items.workbench），渲染时 t() 解析 */
 export interface TagItem {
   path: string
   title: string
@@ -102,6 +106,13 @@ export const useAppStore = defineStore('app', () => {
   watch([resolvedMode, preset, () => prefs.colorWeak, () => prefs.gray], applyAppearance)
   watch(prefs, () => localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)), { deep: true })
 
+  // 语言：持久化值在 store 实例化时立即生效（否则刷新后首屏是中文再闪切）
+  setI18nLocale(prefs.lang)
+  watch(
+    () => prefs.lang,
+    (lang) => setI18nLocale(lang),
+  )
+
   // store 实例化即应用一次，避免进入主布局后才闪切
   applyAppearance()
 
@@ -111,7 +122,8 @@ export const useAppStore = defineStore('app', () => {
 
   /* ---------- 标签页 ---------- */
   const tabs = ref<TagItem[]>([
-    { path: '/workbench', title: '工作台', appCode: 'base', affix: true },
+    // 常驻首页标签：标题同其它标签一样存词条 key
+    { path: '/workbench', title: 'menu.items.workbench', appCode: 'base', affix: true },
   ])
 
   function addTab(tab: TagItem): void {

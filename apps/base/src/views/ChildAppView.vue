@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { APP_CODES, CHILD_DATA_KEYS, type AppCode } from '@aegis/contract'
 import { useAppStore } from '@/stores/app'
 import { useMenuStore } from '@/stores/menu'
@@ -9,6 +10,7 @@ import AppIcon from '@/components/AppIcon.vue'
 const route = useRoute()
 const appStore = useAppStore()
 const menuStore = useMenuStore()
+const { t } = useI18n()
 
 /** 当前路由要装载的子应用（由路由 meta 指定，用契约类型收窄 registry 索引） */
 const appCode = computed<AppCode>(() => (route.meta.appCode as AppCode) || APP_CODES.SOC_TOOLS)
@@ -31,16 +33,23 @@ const el = ref<HTMLElement | null>(null)
 const loading = ref(true)
 const failed = ref(false)
 
-/** 把主题快照推给子应用（mounted 事件后与主题变化时各调一次） */
-function pushTheme(): void {
+/**
+ * 把基座侧的共享状态推给子应用：主题快照 + 界面语言。
+ * mounted 事件后（子应用监听就绪）与任一状态变化时各调一次；
+ * 子应用侧的 addDataListener 带 autoTrigger，晚注册也能拿到最后一次数据。
+ */
+function pushData(): void {
   const target = el.value as unknown as { setData?: (data: Record<string, unknown>) => void } | null
-  target?.setData?.({ [CHILD_DATA_KEYS.THEME]: appStore.themeSnapshot })
+  target?.setData?.({
+    [CHILD_DATA_KEYS.THEME]: appStore.themeSnapshot,
+    [CHILD_DATA_KEYS.LANG]: appStore.prefs.lang,
+  })
 }
 
 function onChildMounted(): void {
   loading.value = false
   failed.value = false
-  pushTheme()
+  pushData()
 }
 
 function onChildError(): void {
@@ -55,33 +64,35 @@ function retry(): void {
   appStore.refresh()
 }
 
-watch(() => appStore.themeSnapshot, pushTheme, { deep: true })
+watch(() => appStore.themeSnapshot, pushData, { deep: true })
+// 语言也随数据通道下发：基座切语言，已装载的子应用无需刷新即可跟随
+watch(() => appStore.prefs.lang, pushData)
 </script>
 
 <template>
   <div class="child-app">
     <div v-if="!registration" class="state">
       <AppIcon name="xCircle" :size="26" />
-      <p>子应用「{{ appCode }}」未在注册表中登记，请检查菜单数据。</p>
+      <p>{{ t('child.unregistered', { code: appCode }) }}</p>
     </div>
 
     <template v-else>
       <!-- 装载中 -->
       <div v-if="loading && !failed" class="state">
         <span class="spinner" />
-        <p>正在装载「{{ registration.name }}」…</p>
+        <p>{{ t('child.loading', { name: registration.name }) }}</p>
         <p class="state__sub">micro-app iframe 沙箱 · {{ appUrl }}</p>
       </div>
 
       <!-- 装载失败：一般是子应用 dev server 没起，antd 的 a-result 承载错误态 -->
-      <a-result v-if="failed" class="state state--error" status="warning" title="子应用装载失败">
+      <a-result v-if="failed" class="state state--error" status="warning" :title="t('child.loadFailed')">
         <template #subTitle>
-          <p class="state__sub">请确认 soc-tools 已启动（pnpm dev:soc，端口 8002）</p>
+          <p class="state__sub">{{ t('child.checkServer') }}</p>
         </template>
         <template #extra>
           <a-button type="primary" @click="retry">
             <template #icon><AppIcon name="refresh" :size="13" /></template>
-            重试
+            {{ t('child.retry') }}
           </a-button>
         </template>
       </a-result>

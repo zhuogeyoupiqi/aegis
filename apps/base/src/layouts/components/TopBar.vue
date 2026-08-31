@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useMenuStore } from '@/stores/menu'
 import { useUserStore } from '@/stores/user'
@@ -11,16 +12,18 @@ const menuStore = useMenuStore()
 const userStore = useUserStore()
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 
 const layout = computed(() => appStore.prefs.layout)
 
-/* ---------- 面包屑：分组来自菜单数据，标题优先取 stub 重定向带的语义标题 ---------- */
-const groupTitle = computed(() => {
-  const fromQuery = route.query.group as string | undefined
-  if (fromQuery) return fromQuery
-  return menuStore.findItem(route.path)?.groupTitle ?? ''
+/* ---------- 面包屑：分组来自菜单数据；stub 页由重定向 query 指回菜单 key ---------- */
+const groupKey = computed(() => (route.query.group as string) || menuStore.findItem(route.path)?.groupKey || '')
+const groupTitle = computed(() => (groupKey.value ? t(`menu.groups.${groupKey.value}`) : ''))
+const pageTitle = computed(() => {
+  const itemKey = route.query.item as string | undefined
+  if (itemKey) return t(`menu.items.${itemKey}`)
+  return route.meta.title ? t(route.meta.title as string) : ''
 })
-const pageTitle = computed(() => (route.query.title as string) || (route.meta.title as string) || '')
 
 /* ---------- 主题快捷切换：只在明/暗之间切，auto 是设置抽屉里的精细选项 ---------- */
 function toggleTheme(): void {
@@ -29,17 +32,20 @@ function toggleTheme(): void {
 
 function logout(): void {
   userStore.logout()
-  appStore.pushToast('已退出登录', 'info')
+  appStore.pushToast(t('topbar.logoutToast'), 'info')
   router.push('/login')
 }
 
 const initial = computed(() => (userStore.userInfo?.nickname || 'A').slice(0, 1).toUpperCase())
+
+/** 用户角色展示：角色数据本身是后端下发文案，无角色时给默认值 */
+const roleText = computed(() => (userStore.userInfo?.roles || []).join(' · ') || t('topbar.defaultRole'))
 </script>
 
 <template>
   <header class="topbar">
     <!-- top 布局没有侧栏，logo 移到顶栏 -->
-    <a-tooltip v-if="layout !== 'top'" :title="appStore.sidebarCollapsed ? '展开菜单' : '折叠菜单'">
+    <a-tooltip v-if="layout !== 'top'" :title="appStore.sidebarCollapsed ? t('topbar.expandMenu') : t('topbar.collapseMenu')">
       <button class="icon-btn" @click="appStore.sidebarCollapsed = !appStore.sidebarCollapsed">
         <AppIcon name="panelLeft" :size="17" />
       </button>
@@ -52,19 +58,20 @@ const initial = computed(() => (userStore.userInfo?.nickname || 'A').slice(0, 1)
     <nav class="breadcrumb">
       <span class="crumb crumb--root">Aegis</span>
       <span class="sep">/</span>
-      <span v-if="groupTitle && groupTitle !== '常用'" class="app-chip">{{ groupTitle }}</span>
-      <span v-if="groupTitle && groupTitle !== '常用'" class="sep">/</span>
+      <!-- 常用分组不单独占一级面包屑，避免「Aegis / 常用 / 工作台」的冗余 -->
+      <span v-if="groupTitle && groupKey !== 'common'" class="app-chip">{{ groupTitle }}</span>
+      <span v-if="groupTitle && groupKey !== 'common'" class="sep">/</span>
       <b>{{ pageTitle }}</b>
     </nav>
 
     <div class="spacer" />
 
-    <a-tooltip :title="appStore.resolvedMode === 'dark' ? '切换到浅色' : '切换到暗色'">
+    <a-tooltip :title="appStore.resolvedMode === 'dark' ? t('topbar.toLight') : t('topbar.toDark')">
       <button class="icon-btn" @click="toggleTheme">
         <AppIcon :name="appStore.resolvedMode === 'dark' ? 'sun' : 'moon'" :size="17" />
       </button>
     </a-tooltip>
-    <a-tooltip title="项目配置">
+    <a-tooltip :title="t('topbar.settings')">
       <button class="icon-btn" @click="appStore.settingsOpen = true">
         <AppIcon name="sliders" :size="17" />
       </button>
@@ -77,12 +84,12 @@ const initial = computed(() => (userStore.userInfo?.nickname || 'A').slice(0, 1)
         <div class="avatar-menu">
           <div class="avatar-menu__head">
             <b>{{ userStore.userInfo?.nickname }}</b>
-            <span>{{ (userStore.userInfo?.roles || []).join(' · ') || '普通用户' }}</span>
+            <span>{{ roleText }}</span>
           </div>
           <a-menu :selectable="false">
             <a-menu-item key="logout" danger @click="logout">
               <AppIcon name="logout" :size="14" />
-              退出登录
+              {{ t('topbar.logout') }}
             </a-menu-item>
           </a-menu>
         </div>

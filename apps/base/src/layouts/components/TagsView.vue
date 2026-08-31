@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAppStore, type TagItem } from '@/stores/app'
 import { normalizeTabPath } from '@/router'
 import AppIcon from '@/components/AppIcon.vue'
@@ -8,6 +9,7 @@ import AppIcon from '@/components/AppIcon.vue'
 const appStore = useAppStore()
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 
 /** 子应用识别色（与原型一致：base 蓝 / soc 青 / asset 蓝 / ai 粉紫 / system 琥珀） */
 const APP_COLORS: Record<string, string> = {
@@ -62,7 +64,7 @@ onMounted(() => document.addEventListener('click', onDocClick))
 onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
 
 function ctxRefresh(): void {
-  if (ctx.target) appStore.pushToast(`已刷新「${ctx.target.title}」`)
+  if (ctx.target) appStore.pushToast(t('tags.refreshToast', { title: t(ctx.target.title) }))
   appStore.refresh()
   closeCtx()
 }
@@ -71,7 +73,12 @@ function ctxPin(): void {
   const tab = appStore.tabs.find((t) => t.path === ctx.target?.path)
   if (tab) {
     tab.affix = !tab.affix
-    appStore.pushToast(tab.affix ? `已固定「${tab.title}」` : `已取消固定「${tab.title}」`, 'info')
+    appStore.pushToast(
+      tab.affix
+        ? t('tags.pinnedToast', { title: t(tab.title) })
+        : t('tags.unpinnedToast', { title: t(tab.title) }),
+      'info',
+    )
   }
   closeCtx()
 }
@@ -83,7 +90,7 @@ function ctxCloseOthers(): void {
   if (!ctx.target) return
   appStore.closeOthers(ctx.target.path)
   if (!isActive(ctx.target)) router.push(ctx.target.path)
-  appStore.pushToast('已关闭其他标签页', 'info')
+  appStore.pushToast(t('tags.closeOthersToast'), 'info')
   closeCtx()
 }
 </script>
@@ -101,7 +108,8 @@ function ctxCloseOthers(): void {
         @contextmenu="openCtx($event, tab)"
       >
         <span class="tab__strip" />
-        <span class="tab__title">{{ tab.title }}</span>
+        <!-- 标签标题存的是词条 key，这里解析渲染（语言切换响应式跟随） -->
+        <span class="tab__title">{{ t(tab.title) }}</span>
         <span v-if="tab.affix" class="tab__pin" title="已固定"><AppIcon name="lock" :size="10" /></span>
         <span v-else class="tab__close" title="关闭" @click.stop="closeTab(tab)">
           <AppIcon name="close" :size="10" />
@@ -109,7 +117,11 @@ function ctxCloseOthers(): void {
       </div>
     </div>
     <div class="tag-actions">
-      <button class="icon-btn" title="刷新当前页" @click="appStore.refresh(); appStore.pushToast('已刷新当前页面')">
+      <button
+        class="icon-btn"
+        :title="t('tags.refreshPage')"
+        @click="appStore.refresh(); appStore.pushToast(t('tags.refreshPageToast'))"
+      >
         <AppIcon name="refresh" :size="14" />
       </button>
     </div>
@@ -120,12 +132,12 @@ function ctxCloseOthers(): void {
     -->
     <Teleport to="body">
       <div v-if="ctx.visible" class="ctx-menu" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
-        <div class="ctx-item" @click="ctxRefresh"><AppIcon name="refresh" :size="13" /> 刷新</div>
-        <div class="ctx-item" @click="ctxPin"><AppIcon name="lock" :size="13" /> 固定/取消固定</div>
+        <div class="ctx-item" @click="ctxRefresh"><AppIcon name="refresh" :size="13" /> {{ t('tags.refresh') }}</div>
+        <div class="ctx-item" @click="ctxPin"><AppIcon name="lock" :size="13" /> {{ t('tags.pin') }}</div>
         <div class="ctx-item" :class="{ disabled: ctx.target?.affix }" @click="ctxClose">
-          <AppIcon name="close" :size="13" /> 关闭标签页
+          <AppIcon name="close" :size="13" /> {{ t('tags.close') }}
         </div>
-        <div class="ctx-item" @click="ctxCloseOthers"><AppIcon name="chevronRight" :size="13" /> 关闭其他</div>
+        <div class="ctx-item" @click="ctxCloseOthers"><AppIcon name="chevronRight" :size="13" /> {{ t('tags.closeOthers') }}</div>
       </div>
     </Teleport>
   </nav>

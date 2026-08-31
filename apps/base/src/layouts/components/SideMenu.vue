@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import { useMenuStore, type FlatMenuItem } from '@/stores/menu'
+import { useMenuStore } from '@/stores/menu'
 import AppIcon from '@/components/AppIcon.vue'
 import type { MenuGroup } from '@aegis/contract'
 
@@ -10,6 +11,7 @@ const appStore = useAppStore()
 const menuStore = useMenuStore()
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 
 /**
  * mixed 布局只显示当前顶部分组的子项；side 布局显示全部分组。
@@ -21,11 +23,17 @@ const visibleGroups = computed<MenuGroup[]>(() => {
 })
 
 /**
- * 激活判定：普通页按 path；stub 重定向到 /coming-soon 后按 query.title 对回菜单项。
+ * 激活判定：普通页按 path；stub 重定向到 /coming-soon 后按 query.item（菜单 key）对回。
+ * 参数用结构化类型（只依赖 path/key），分组里的 MenuItem 与拍平的 FlatMenuItem 都能传。
  */
-function isActive(item: FlatMenuItem | { path: string; title: string }): boolean {
+function isActive(item: { path: string; key: string }): boolean {
   if (route.path === item.path) return true
-  return route.path === '/coming-soon' && route.query.title === item.title
+  return route.path === '/coming-soon' && route.query.item === item.key
+}
+
+/** 分组标题：按分组 key 查词条，数据里的中文 title 作兜底 */
+function groupTitle(g: MenuGroup): string {
+  return t(`menu.groups.${g.key}`) || g.title
 }
 
 function go(item: { path: string }): void {
@@ -42,17 +50,17 @@ function go(item: { path: string }): void {
 
     <nav class="menu">
       <template v-for="g in visibleGroups" :key="g.key">
-        <div class="menu-group-title">{{ g.title }}</div>
+        <div class="menu-group-title">{{ groupTitle(g) }}</div>
         <div
           v-for="item in g.children"
           :key="item.key"
           class="menu-item"
           :class="{ active: isActive(item) }"
-          :title="item.title"
+          :title="t(`menu.items.${item.key}`)"
           @click="go(item)"
         >
           <AppIcon :name="item.icon || 'apps'" :size="16" />
-          <span class="label">{{ item.title }}</span>
+          <span class="label">{{ t(`menu.items.${item.key}`) }}</span>
         </div>
       </template>
     </nav>

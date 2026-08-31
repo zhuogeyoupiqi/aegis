@@ -1,6 +1,13 @@
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { CHILD_DATA_KEYS, type ThemeSnapshot } from '@aegis/contract'
 import { lastThemeSnapshot } from '../antd-theme'
+
+/**
+ * 子应用最近收到的语言（模块级响应式状态）。
+ * 与 lastThemeSnapshot 同理：子应用的 i18n / antd locale 从数据派生，
+ * App.vue watch 它来切换语言。
+ */
+export const lastLang = ref<'zh-CN' | 'en-US'>('zh-CN')
 
 /**
  * 把主题快照应用到当前应用根节点。
@@ -32,13 +39,16 @@ export function useBaseThemeBridge(): void {
     const micro = (window as unknown as { microApp?: any }).microApp
     if (!micro) return
 
-    // 后续变更：基座切主题时实时跟随。
+    // 后续变更：基座切主题/语言时实时跟随。
     // 第二个参数 autoTrigger = true：注册时若基座已推送过数据，立即补一次回调。
     // 基座在 micro-app 的 mounted 事件就 setData，而子应用 Vue 挂载（含路由初始
     // 导航）可能晚于该事件——没有这个参数就会错过首次主题，表现为子应用恒为浅色。
     micro.addDataListener((data: Record<string, unknown>) => {
       const t = data?.[CHILD_DATA_KEYS.THEME]
       if (t) applyThemeSnapshot(t as ThemeSnapshot)
+      const lang = data?.[CHILD_DATA_KEYS.LANG]
+      // 只认契约内的语言值，脏数据直接忽略
+      if (lang === 'zh-CN' || lang === 'en-US') lastLang.value = lang
     }, true)
   })
 }

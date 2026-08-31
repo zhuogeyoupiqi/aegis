@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { App } from 'ant-design-vue'
 import type { FormInstance, Rule } from 'ant-design-vue/es/form'
 import { bindFeedback } from '@aegis/shared'
@@ -11,6 +12,7 @@ import AppIcon from '@/components/AppIcon.vue'
 const router = useRouter()
 const appStore = useAppStore()
 const userStore = useUserStore()
+const { t } = useI18n()
 
 // 登录页不在 MainLayout 内，需要自己接入一次 message 上下文实例
 bindFeedback(App.useApp().message)
@@ -18,11 +20,12 @@ bindFeedback(App.useApp().message)
 const formRef = ref<FormInstance>()
 const form = reactive({ account: 'admin', password: '123456', remember: true })
 
-// 表单校验规则：只做非空校验，账号格式等规则等接真实接口时再补
-const rules: Record<string, Rule[]> = {
-  account: [{ required: true, message: '请输入账号', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-}
+// 表单校验规则：只做非空校验，账号格式等规则等接真实接口时再补。
+// 用 computed 生成：错误文案跟语言走，切语言后未触发的校验提示也是新语言
+const rules = computed<Record<string, Rule[]>>(() => ({
+  account: [{ required: true, message: t('login.accountRequired'), trigger: 'blur' }],
+  password: [{ required: true, message: t('login.passwordRequired'), trigger: 'blur' }],
+}))
 
 // 服务端错误（账号密码不对）用 alert 展示，与字段级校验错误区分开
 const loginError = ref('')
@@ -36,16 +39,16 @@ async function submit(): Promise<void> {
   loginError.value = ''
   try {
     await userStore.login(form.account.trim(), form.password)
-    appStore.pushToast(`欢迎回来，${userStore.userInfo?.nickname}`)
+    appStore.pushToast(t('login.welcomeBack', { name: userStore.userInfo?.nickname ?? '' }))
     router.push('/workbench')
   } catch (e) {
     // mock/真实接口统一在这里展示错误，校验通过但不成功不跳转
-    loginError.value = e instanceof Error ? e.message : '登录失败，请稍后重试'
+    loginError.value = e instanceof Error ? e.message : t('login.failed')
   }
 }
 
 function forgot(): void {
-  appStore.pushToast('内网平台请联系管理员重置密码', 'info')
+  appStore.pushToast(t('login.forgotToast'), 'info')
 }
 </script>
 
@@ -104,8 +107,8 @@ function forgot(): void {
       <!-- 表单区：跟随主题（明/暗、主题色在登录页同样生效） -->
       <section class="form-pane">
         <header class="form-head">
-          <h1>欢迎回来</h1>
-          <p>使用平台账号登录（内网系统 · 未授权访问将被记录）</p>
+          <h1>{{ t('login.welcome') }}</h1>
+          <p>{{ t('login.subtitle') }}</p>
         </header>
 
         <!-- 服务端错误横幅：区别于字段校验，登录失败时出现 -->
@@ -127,42 +130,44 @@ function forgot(): void {
           class="login-form"
           @finish="submit"
         >
-          <a-form-item label="账号" name="account">
+          <a-form-item :label="t('login.account')" name="account">
             <a-input
               v-model:value="form.account"
-              placeholder="请输入账号"
+              :placeholder="t('login.accountPlaceholder')"
               size="large"
               autocomplete="username"
               spellcheck="false"
             />
           </a-form-item>
 
-          <a-form-item label="密码" name="password">
+          <a-form-item :label="t('login.password')" name="password">
             <!-- 密码可见性切换是 a-input-password 内建能力，不再手写眼睛按钮；回车提交走表单原生流程（带校验） -->
             <a-input-password
               v-model:value="form.password"
-              placeholder="请输入密码"
+              :placeholder="t('login.passwordPlaceholder')"
               size="large"
               autocomplete="current-password"
             />
           </a-form-item>
 
           <div class="form-row">
-            <a-checkbox v-model:checked="form.remember">记住我</a-checkbox>
-            <a class="forgot" @click.prevent="forgot">忘记密码？</a>
+            <a-checkbox v-model:checked="form.remember">{{ t('login.remember') }}</a-checkbox>
+            <a class="forgot" @click.prevent="forgot">{{ t('login.forgot') }}</a>
           </div>
 
           <a-button type="primary" html-type="submit" size="large" block :loading="userStore.loading">
-            {{ userStore.loading ? '登录中…' : '登 录' }}
+            {{ userStore.loading ? t('login.submitting') : t('login.submit') }}
           </a-button>
         </a-form>
 
-        <p class="demo-tip">演示账号 <span class="kbd">admin</span> · 密码 <span class="kbd">123456</span></p>
+        <p class="demo-tip">
+          {{ t('login.demoTip') }} <span class="kbd">admin</span> · 123456
+        </p>
 
         <!-- 安全提示条：内网平台必备 -->
         <div class="sec-notice">
           <AppIcon name="lock" :size="13" />
-          <span>Restricted · Internal Use Only — 本系统仅限授权人员在内网环境使用，操作将被审计留痕</span>
+          <span>{{ t('login.secNotice') }}</span>
         </div>
       </section>
     </div>

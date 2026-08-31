@@ -24,13 +24,13 @@ onMounted(() => {
 
 /**
  * mixed 布局下顶部分组要跟随当前页面。
- * coming-soon 页拿不到 path 对应项，退化用 query.title 匹配菜单标题。
+ * coming-soon 页拿不到 path 对应项，退化用 query.item（菜单 key）匹配。
  */
 function syncTopGroup(): void {
   if (appStore.prefs.layout !== 'mixed') return
   const item =
     menuStore.findItem(route.path) ??
-    menuStore.flatItems.find((i) => route.path === '/coming-soon' && i.title === route.query.title)
+    menuStore.flatItems.find((i) => route.path === '/coming-soon' && i.key === route.query.item)
   if (item) appStore.activeTopGroup = item.groupKey
 }
 

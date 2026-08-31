@@ -31,6 +31,8 @@ export interface AppRegistration {
 export const CHILD_DATA_KEYS = {
   /** 主题快照：子应用收到后同步自己的 CSS 变量 */
   THEME: 'theme',
+  /** 语言（'zh-CN' | 'en-US'）：子应用跟随基座切换 i18n locale 与 antd locale */
+  LANG: 'lang',
   /** 用户态（只读快照）：子应用展示用户名/权限用，禁止自行管理 token */
   USER: 'user',
 } as const

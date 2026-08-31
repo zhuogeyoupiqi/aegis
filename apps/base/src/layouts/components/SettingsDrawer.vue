@@ -1,31 +1,42 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore, THEME_PRESETS, type NavLayout, type ThemeMode } from '@/stores/app'
+import { LANG_OPTIONS, type Lang } from '@/locales'
 import AppIcon from '@/components/AppIcon.vue'
 
 const appStore = useAppStore()
+const { t } = useI18n()
 
-const MODES: { value: ThemeMode; label: string }[] = [
-  { value: 'light', label: '浅色' },
-  { value: 'dark', label: '暗色' },
-  { value: 'auto', label: '跟随系统' },
-]
+const MODES = computed(() => [
+  { value: 'light' as ThemeMode, label: t('settings.light') },
+  { value: 'dark' as ThemeMode, label: t('settings.dark') },
+  { value: 'auto' as ThemeMode, label: t('settings.auto') },
+])
 
-const LAYOUTS: { key: NavLayout; label: string }[] = [
-  { key: 'side', label: '侧边菜单' },
-  { key: 'top', label: '顶部菜单' },
-  { key: 'mixed', label: '混合菜单' },
-]
+const LAYOUTS = computed(() => [
+  { key: 'side' as NavLayout, label: t('settings.layoutSide') },
+  { key: 'top' as NavLayout, label: t('settings.layoutTop') },
+  { key: 'mixed' as NavLayout, label: t('settings.layoutMixed') },
+])
+
+function onLangChange(v: string | number): void {
+  appStore.prefs.lang = v as Lang
+}
+
+/** 主题色名称展示：预设 label 是数据文案，暂不进词条（后续做多语言预设名再收编） */
+const presetLabel = computed(() => appStore.preset.label)
 
 function resetAll(): void {
   appStore.resetPrefs()
-  appStore.pushToast('已恢复默认配置', 'info')
+  appStore.pushToast(t('settings.resetToast'), 'info')
 }
 </script>
 
 <template>
   <a-drawer
     :open="appStore.settingsOpen"
-    title="项目配置"
+    :title="t('settings.title')"
     placement="right"
     :width="320"
     class="settings-drawer"
@@ -34,13 +45,13 @@ function resetAll(): void {
     <div class="drawer-body">
       <!-- 主题模式 -->
       <section class="sec">
-        <h3>主题模式</h3>
+        <h3>{{ t('settings.mode') }}</h3>
         <a-segmented v-model:value="appStore.prefs.mode" :options="MODES" block />
       </section>
 
       <!-- 主题色 -->
       <section class="sec">
-        <h3>主题色</h3>
+        <h3>{{ t('settings.color') }}</h3>
         <!-- 色板是品牌表达，antd 无对应形态，保持自研 -->
         <div class="swatches">
           <button
@@ -55,12 +66,12 @@ function resetAll(): void {
             <AppIcon v-if="appStore.prefs.color === p.key" name="check" :size="12" />
           </button>
         </div>
-        <p class="sec__hint">当前：{{ appStore.preset.label }}（按钮、菜单、高亮全局生效）</p>
+        <p class="sec__hint">{{ t('settings.colorHint', { name: presetLabel }) }}</p>
       </section>
 
       <!-- 导航布局：缩略图是自研示意，antd 无对应形态 -->
       <section class="sec">
-        <h3>导航布局</h3>
+        <h3>{{ t('settings.layout') }}</h3>
         <div class="layout-cards">
           <button
             v-for="l in LAYOUTS"
@@ -78,26 +89,37 @@ function resetAll(): void {
         </div>
       </section>
 
+      <!-- 界面语言：切换后基座立即生效，并随数据通道下发子应用 -->
+      <section class="sec">
+        <h3>{{ t('settings.lang') }}</h3>
+        <a-segmented
+          :value="appStore.prefs.lang"
+          :options="LANG_OPTIONS"
+          block
+          @change="onLangChange"
+        />
+      </section>
+
       <!-- 功能开关 -->
       <section class="sec">
-        <h3>功能</h3>
+        <h3>{{ t('settings.features') }}</h3>
         <div class="switch-row">
-          <div class="info"><b>多标签页</b><span>关闭后隐藏顶部标签栏</span></div>
+          <div class="info"><b>{{ t('settings.showTabs') }}</b><span>{{ t('settings.showTabsHint') }}</span></div>
           <a-switch v-model:checked="appStore.prefs.showTabs" size="small" />
         </div>
         <div class="switch-row">
-          <div class="info"><b>色弱模式</b><span>反相 + 色相旋转，辅助色弱识别</span></div>
+          <div class="info"><b>{{ t('settings.colorWeak') }}</b><span>{{ t('settings.colorWeakHint') }}</span></div>
           <a-switch v-model:checked="appStore.prefs.colorWeak" size="small" />
         </div>
         <div class="switch-row">
-          <div class="info"><b>灰色模式</b><span>页面去色，专注信息结构</span></div>
+          <div class="info"><b>{{ t('settings.gray') }}</b><span>{{ t('settings.grayHint') }}</span></div>
           <a-switch v-model:checked="appStore.prefs.gray" size="small" />
         </div>
       </section>
     </div>
 
     <template #footer>
-      <a-button block @click="resetAll">恢复默认</a-button>
+      <a-button block @click="resetAll">{{ t('settings.reset') }}</a-button>
     </template>
   </a-drawer>
 </template>

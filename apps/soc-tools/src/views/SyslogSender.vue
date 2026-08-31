@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { App } from 'ant-design-vue'
 import { bindFeedback, escapeHtml, lastThemeSnapshot, nowTime, pad, pick, randomInt, toast } from '@aegis/shared'
 import AppIcon from '@/components/AppIcon.vue'
@@ -10,6 +11,8 @@ import AppIcon from '@/components/AppIcon.vue'
    真实实现（第 2 周后端就绪）：后端 DatagramSocket 直发 + SSE 回传，
    本页只需把「模拟循环」换成 SSE 事件监听，交互与样式不动。
    ============================================================ */
+
+const { t } = useI18n()
 
 // 接入 <a-app> 上下文的 message 实例：toast 才能吃到当前主题（暗色不闪白底）
 bindFeedback(App.useApp().message)
@@ -86,8 +89,9 @@ interface LogLine {
   seq: number
   ts: string
   fail: boolean
+  /** 徽标配色类名（lv-critical 等）与词条 key 同源，语言切换后文案在模板里现查 */
   sevCls: string
-  sevLabel: string
+  sevKey: 'critical' | 'high' | 'medium' | 'low'
   sevNum: number
   html: string
 }
@@ -119,12 +123,16 @@ function randomIp(): { ip: string; ext: boolean } {
   return { ip: base + randomInt(2, 254), ext }
 }
 
-/** severity(0-10) → 语义等级（色 + 文字，缺一不可） */
-function sevLevel(s: number): { cls: string; label: string } {
-  if (s >= 9) return { cls: 'lv-critical', label: '危急' }
-  if (s >= 7) return { cls: 'lv-high', label: '高危' }
-  if (s >= 4) return { cls: 'lv-medium', label: '中危' }
-  return { cls: 'lv-low', label: '低危' }
+/**
+ * severity(0-10) → 语义等级。
+ * 只返回配色类名与词条 key，中/英等级名由语言包提供（模板里现查），
+ * 切语言时历史日志行的徽标文案也能跟着变。
+ */
+function sevLevel(s: number): { cls: string; key: LogLine['sevKey'] } {
+  if (s >= 9) return { cls: 'lv-critical', key: 'critical' }
+  if (s >= 7) return { cls: 'lv-high', key: 'high' }
+  if (s >= 4) return { cls: 'lv-medium', key: 'medium' }
+  return { cls: 'lv-low', key: 'low' }
 }
 
 interface RenderResult {
@@ -159,7 +167,7 @@ const previewHtml = computed(() => {
     .replace(r.src.ip, `<span class="hl-ip">${r.src.ip}</span>`)
     .replace(r.evt.name, `<span class="hl">${r.evt.name}</span>`)
     .replace(r.user, `<span class="hl">${r.user}</span>`)
-  return `<span class="pv-label">▍渲染预览</span><br>${html}`
+  return `<span class="pv-label">${t('syslog.previewLabel')}</span><br>${html}`
 })
 
 /** 切换预设模板：把选中模板的原始文本灌进编辑框（用户可再改） */
@@ -177,7 +185,7 @@ function insertVar(v: string): void {
   tplText.value = area.value
   area.focus()
   area.setSelectionRange(pos + v.length, pos + v.length)
-  toast(`已插入变量 ${v}`, 'info')
+  toast(t('syslog.insertedVar', { var: v }), 'info')
 }
 
 /* ---------- 发送模拟 ---------- */
@@ -192,7 +200,7 @@ function appendLine(r: RenderResult, seq: number, isFail: boolean): void {
     ts: nowTime(),
     fail: isFail,
     sevCls: lv.cls,
-    sevLabel: lv.label,
+    sevKey: lv.key,
     sevNum: r.evt.sev,
     html,
   })
@@ -219,7 +227,11 @@ function stopSend(finished: boolean): void {
   sending.value = false
   if (finished) {
     toast(
-      `发送完成：${sent.value + failed.value} 条 · 失败 ${failed.value} · 平均 ${rate.value.toFixed(1)} 条/秒`,
+      t('syslog.doneToast', {
+        total: sent.value + failed.value,
+        failed: failed.value,
+        rate: rate.value.toFixed(1),
+      }),
     )
   }
 }
@@ -242,11 +254,11 @@ function tick(): void {
 function toggleSend(): void {
   if (sending.value) {
     stopSend(false)
-    toast('已手动停止发送', 'info')
+    toast(t('syslog.stopped'), 'info')
     return
   }
   if (!whitelistOk.value) {
-    toast('目标不在白名单（10.0.0.0/8）内，发送被拦截', 'bad')
+    toast(t('syslog.wlBlocked'), 'bad')
     return
   }
   total.value = Math.max(1, Math.floor(sendCount.value) || 50)
@@ -273,10 +285,10 @@ onUnmounted(() => {
 })
 
 function saveTask(): void {
-  toast('发送任务已保存，可在「发送历史」中一键复现（mock）')
+  toast(t('syslog.savedTask'))
 }
 function showHistory(): void {
-  toast('发送历史（mock）：今日 14 次任务 · 累计 3,208 条', 'info')
+  toast(t('syslog.historyToast'), 'info')
 }
 </script>
 
@@ -286,26 +298,23 @@ function showHistory(): void {
     <div class="page-header">
       <div>
         <h1>
-          Syslog 发包器
-          <span class="pbadge pbadge--ok"><span class="dot" />MVP 核心功能</span>
+          {{ t('syslog.title') }}
+          <span class="pbadge pbadge--ok"><span class="dot" />{{ t('syslog.mvpBadge') }}</span>
         </h1>
-        <p class="desc">
-          向 SIEM / 日志采集器发送模拟 syslog 报文，验证解析规则与告警策略。
-          当前端到端为 mock；后端就绪后由 DatagramSocket 直发、SSE 实时回传。
-        </p>
+        <p class="desc">{{ t('syslog.desc') }}</p>
         <div class="page-badges">
-          <span class="pbadge pbadge--ok"><span class="dot" />白名单模式已开启 10.0.0.0/8</span>
-          <span class="pbadge">发送留痕已启用</span>
+          <span class="pbadge pbadge--ok"><span class="dot" />{{ t('syslog.wlBadge') }}</span>
+          <span class="pbadge">{{ t('syslog.auditBadge') }}</span>
         </div>
       </div>
       <div class="page-header-actions">
         <a-button @click="saveTask">
           <template #icon><AppIcon name="save" :size="13" /></template>
-          保存任务
+          {{ t('syslog.saveTask') }}
         </a-button>
         <a-button @click="showHistory">
           <template #icon><AppIcon name="clock" :size="13" /></template>
-          发送历史
+          {{ t('syslog.history') }}
         </a-button>
       </div>
     </div>
@@ -315,12 +324,12 @@ function showHistory(): void {
       <section class="panel panel--config">
         <div class="panel-head">
           <AppIcon name="sliders" :size="15" />
-          <h2>发送配置</h2>
-          <span class="sub">UDP 直发 · 白名单管控</span>
+          <h2>{{ t('syslog.configTitle') }}</h2>
+          <span class="sub">{{ t('syslog.configSub') }}</span>
         </div>
         <div class="panel-body">
           <div class="field">
-            <label>目标地址（IP : 端口）</label>
+            <label>{{ t('syslog.targetLabel') }}</label>
             <div class="ip-row">
               <a-input v-model:value="targetIp" class="ip-row__ip" spellcheck="false" />
               <a-input-number
@@ -333,22 +342,22 @@ function showHistory(): void {
             </div>
             <p class="field-hint" :class="whitelistOk ? 'ok' : 'bad'">
               <template v-if="whitelistOk">
-                <AppIcon name="check" :size="11" /> 目标在白名单网段内（10.0.0.0/8）
+                <AppIcon name="check" :size="11" /> {{ t('syslog.wlOk') }}
               </template>
               <template v-else>
-                <AppIcon name="xCircle" :size="11" /> 目标不在白名单内，发送将被后端拦截
+                <AppIcon name="xCircle" :size="11" /> {{ t('syslog.wlBad') }}
               </template>
             </p>
           </div>
 
           <div class="field">
-            <label>传输协议</label>
+            <label>{{ t('syslog.protocolLabel') }}</label>
             <a-segmented :value="'UDP'" :options="PROTOCOL_OPTIONS" />
-            <p class="field-hint">TCP / TLS 将于二期支持</p>
+            <p class="field-hint">{{ t('syslog.protocolHint') }}</p>
           </div>
 
           <div class="field">
-            <label>发送数量 / 间隔</label>
+            <label>{{ t('syslog.countLabel') }}</label>
             <div class="ip-row">
               <a-input-number v-model:value="sendCount" class="ip-row__num" :min="1" :max="10000" />
               <a-input-number
@@ -359,20 +368,20 @@ function showHistory(): void {
                 addon-after="ms"
               />
             </div>
-            <p class="field-hint">间隔最小 50ms · 令牌桶限速将于二期接入</p>
+            <p class="field-hint">{{ t('syslog.countHint') }}</p>
           </div>
 
           <div class="switch-row">
             <div class="info">
-              <b>回环监听</b>
-              <span>本地 UDP 5140 收自己发的包，自证报文格式</span>
+              <b>{{ t('syslog.loopbackTitle') }}</b>
+              <span>{{ t('syslog.loopbackHint') }}</span>
             </div>
             <a-switch v-model:checked="loopback" size="small" />
           </div>
           <div class="switch-row">
             <div class="info">
-              <b>变量随机化</b>
-              <span>每次发送重新生成 IP / 用户名 / 序号</span>
+              <b>{{ t('syslog.randomizeTitle') }}</b>
+              <span>{{ t('syslog.randomizeHint') }}</span>
             </div>
             <a-switch v-model:checked="randomize" size="small" />
           </div>
@@ -385,7 +394,7 @@ function showHistory(): void {
               @click="toggleSend"
             >
               <template #icon><AppIcon name="send" :size="14" /></template>
-              {{ sending ? '停止发送' : '开始发送' }}
+              {{ sending ? t('syslog.stop') : t('syslog.start') }}
             </a-button>
             <a-progress
               class="send-progress"
@@ -402,12 +411,12 @@ function showHistory(): void {
       <section class="panel panel--template">
         <div class="panel-head">
           <AppIcon name="terminal" :size="15" />
-          <h2>消息模板</h2>
-          <span class="sub">变量占位符将在发送时渲染</span>
+          <h2>{{ t('syslog.tplTitle') }}</h2>
+          <span class="sub">{{ t('syslog.tplSub') }}</span>
           <div class="right">
-            <a-button size="small" @click="toast('AI 生成模板将在 AI 子应用就绪后接入', 'info')">
+            <a-button size="small" @click="toast(t('syslog.aiToast'), 'info')">
               <template #icon><AppIcon name="sparkles" :size="12" /></template>
-              AI 生成模板
+              {{ t('syslog.aiGen') }}
             </a-button>
           </div>
         </div>
@@ -425,7 +434,7 @@ function showHistory(): void {
           <textarea ref="tplArea" v-model="tplText" class="code-area" spellcheck="false" />
 
           <div class="var-section">
-            <p class="var-title">点击插入变量到光标处</p>
+            <p class="var-title">{{ t('syslog.varHint') }}</p>
             <div class="var-chips">
               <button v-for="v in VAR_CHIPS" :key="v" class="var-chip" @click="insertVar(v)">{{ v }}</button>
             </div>
@@ -439,34 +448,36 @@ function showHistory(): void {
       <section class="panel panel--terminal">
         <div class="panel-head">
           <span class="term-status" :class="{ running: sending }">
-            <span class="dot" />{{ sending ? '发送中' : '空闲' }}
+            <span class="dot" />{{ sending ? t('syslog.stSending') : t('syslog.stIdle') }}
           </span>
-          <h2>实时发送日志</h2>
+          <h2>{{ t('syslog.termTitle') }}</h2>
           <div class="right">
             <div class="term-stats">
-              <span class="stat">已发送 <b>{{ sent }}</b></span>
-              <span class="stat stat--err">失败 <b>{{ failed }}</b></span>
-              <span class="stat">速率 <b>{{ rate.toFixed(1) }}</b> 条/s</span>
-              <span class="stat">耗时 <b>{{ elapsed.toFixed(1) }}</b>s</span>
+              <span class="stat">{{ t('syslog.statSent') }} <b>{{ sent }}</b></span>
+              <span class="stat stat--err">{{ t('syslog.statFailed') }} <b>{{ failed }}</b></span>
+              <span class="stat">{{ t('syslog.statRate') }} <b>{{ rate.toFixed(1) }}</b> {{ t('syslog.perSec') }}</span>
+              <span class="stat">{{ t('syslog.statElapsed') }} <b>{{ elapsed.toFixed(1) }}</b>s</span>
             </div>
             <a-button size="small" @click="autoScroll = !autoScroll">
-              自动滚动：{{ autoScroll ? '开' : '关' }}
+              {{ t('syslog.autoScroll') }}：{{ autoScroll ? t('syslog.on') : t('syslog.off') }}
             </a-button>
-            <a-button size="small" :disabled="logs.length === 0" @click="clearLogs">清空</a-button>
+            <a-button size="small" :disabled="logs.length === 0" @click="clearLogs">
+              {{ t('syslog.clear') }}
+            </a-button>
           </div>
         </div>
         <div ref="termBody" class="term-body">
           <div v-if="logs.length === 0" class="term-empty">
             <div>
               <AppIcon name="terminal" :size="30" />
-              <br />暂无发送记录 · 点击「开始发送」查看实时回传
+              <br />{{ t('syslog.termEmpty') }}
             </div>
           </div>
           <div v-for="line in logs" :key="line.seq" class="term-line">
             <span class="ts">{{ line.ts }}</span>
             <span class="no">#{{ line.seq }}</span>
             <span class="res" :class="line.fail ? 'fail' : 'ok'">{{ line.fail ? '✕' : '✓' }}</span>
-            <span class="sev-badge" :class="line.sevCls">{{ line.sevLabel }} {{ line.sevNum }}</span>
+            <span class="sev-badge" :class="line.sevCls">{{ t(`syslog.sev.${line.sevKey}`) }} {{ line.sevNum }}</span>
             <!-- msg 为组件内构建的 HTML（已 escapeHtml 转义后拼接高亮 span） -->
             <span class="msg" v-html="line.html" />
           </div>
