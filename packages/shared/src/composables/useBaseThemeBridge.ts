@@ -29,14 +29,13 @@ export function useBaseThemeBridge(): void {
     const micro = (window as unknown as { microApp?: any }).microApp
     if (!micro) return
 
-    // 初始快照：基座可能在子应用挂载前就已 setData，先拉一次
-    const initial = micro.getData()?.[CHILD_DATA_KEYS.THEME]
-    if (initial) applyThemeSnapshot(initial as ThemeSnapshot)
-
-    // 后续变更：基座切主题时实时跟随
+    // 后续变更：基座切主题时实时跟随。
+    // 第二个参数 autoTrigger = true：注册时若基座已推送过数据，立即补一次回调。
+    // 基座在 micro-app 的 mounted 事件就 setData，而子应用 Vue 挂载（含路由初始
+    // 导航）可能晚于该事件——没有这个参数就会错过首次主题，表现为子应用恒为浅色。
     micro.addDataListener((data: Record<string, unknown>) => {
       const t = data?.[CHILD_DATA_KEYS.THEME]
       if (t) applyThemeSnapshot(t as ThemeSnapshot)
-    })
+    }, true)
   })
 }

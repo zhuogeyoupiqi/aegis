@@ -57,6 +57,22 @@ const router = createRouter({
   ],
 })
 
+/**
+ * 标签页路径规范化：只保留 path + 我们自己的语义 query（stub 页的 title/group）。
+ * 基座 URL 可能被外部写入无关 query（如微前端路由同步的残留），若参与标签身份，
+ * 同一页面会裂成多个标签——这里统一洗掉。
+ */
+export function normalizeTabPath(fullPath: string): string {
+  const [pathAndQuery] = fullPath.split('#')
+  const [path, search] = pathAndQuery.split('?')
+  const source = new URLSearchParams(search ?? '')
+  const kept = new URLSearchParams()
+  if (source.get('title')) kept.set('title', source.get('title') as string)
+  if (source.get('group')) kept.set('group', source.get('group') as string)
+  const qs = kept.toString()
+  return qs ? `${path}?${qs}` : path
+}
+
 router.beforeEach(async (to) => {
   const userStore = useUserStore()
 
@@ -83,7 +99,7 @@ router.beforeEach(async (to) => {
   const title = (to.query.title as string) || (to.meta.title as string)
   if (title && to.name !== 'login') {
     appStore.addTab({
-      path: to.fullPath,
+      path: normalizeTabPath(to.fullPath),
       title,
       appCode: (to.meta.appCode as string) || 'base',
     })

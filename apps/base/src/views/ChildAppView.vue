@@ -84,6 +84,9 @@ watch(() => appStore.themeSnapshot, pushTheme, { deep: true })
       <!--
         iframe 属性：Vite/ESM 子应用必须用 iframe 沙箱（with-sandbox 拦不住 ESM）
         destroy：切走即销毁，避免隐藏状态干扰下次装载
+        router-mode="pure"：关闭子应用路由回写基座 URL。默认 search 模式会把子路由
+        以 ?soc-tools=... 写进基座地址并派发原生 popstate，基座 router 跟着重导航，
+        同一页面会裂成多个标签页；基座路径 → 子应用 hash 的映射我们自己做了，不需要它同步
       -->
       <micro-app
         v-if="!failed"
@@ -92,6 +95,7 @@ watch(() => appStore.themeSnapshot, pushTheme, { deep: true })
         :url="appUrl"
         iframe
         destroy
+        router-mode="pure"
         @mounted="onChildMounted"
         @error="onChildError"
       />

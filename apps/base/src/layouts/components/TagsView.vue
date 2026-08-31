@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore, type TagItem } from '@/stores/app'
+import { normalizeTabPath } from '@/router'
 import AppIcon from '@/components/AppIcon.vue'
 
 const appStore = useAppStore()
@@ -22,7 +23,8 @@ function tabColor(tab: TagItem): string {
 }
 
 function isActive(tab: TagItem): boolean {
-  return tab.path === route.fullPath
+  // 两边都走规范化：标签身份只认 path + 我们自己的语义 query，URL 上的外部杂质不参与比较
+  return tab.path === normalizeTabPath(route.fullPath)
 }
 
 /** 关闭标签：若关的是当前页，跳到相邻标签 */
@@ -112,15 +114,20 @@ function ctxCloseOthers(): void {
       </button>
     </div>
 
-    <!-- 右键菜单 -->
-    <div v-if="ctx.visible" class="ctx-menu" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
-      <div class="ctx-item" @click="ctxRefresh"><AppIcon name="refresh" :size="13" /> 刷新</div>
-      <div class="ctx-item" @click="ctxPin"><AppIcon name="lock" :size="13" /> 固定/取消固定</div>
-      <div class="ctx-item" :class="{ disabled: ctx.target?.affix }" @click="ctxClose">
-        <AppIcon name="close" :size="13" /> 关闭标签页
+    <!--
+      右键菜单必须 Teleport 到 body：标签栏有 backdrop-filter，会让它成为
+      fixed 后代的包含块，position:fixed 的菜单实际相对标签栏定位（位置错乱）
+    -->
+    <Teleport to="body">
+      <div v-if="ctx.visible" class="ctx-menu" :style="{ left: ctx.x + 'px', top: ctx.y + 'px' }">
+        <div class="ctx-item" @click="ctxRefresh"><AppIcon name="refresh" :size="13" /> 刷新</div>
+        <div class="ctx-item" @click="ctxPin"><AppIcon name="lock" :size="13" /> 固定/取消固定</div>
+        <div class="ctx-item" :class="{ disabled: ctx.target?.affix }" @click="ctxClose">
+          <AppIcon name="close" :size="13" /> 关闭标签页
+        </div>
+        <div class="ctx-item" @click="ctxCloseOthers"><AppIcon name="chevronRight" :size="13" /> 关闭其他</div>
       </div>
-      <div class="ctx-item" @click="ctxCloseOthers"><AppIcon name="chevronRight" :size="13" /> 关闭其他</div>
-    </div>
+    </Teleport>
   </nav>
 </template>
 
