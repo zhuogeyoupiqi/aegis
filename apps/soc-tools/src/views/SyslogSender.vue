@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref } from 'vue'
-import { escapeHtml, nowTime, pad, pick, randomInt } from '@aegis/shared'
+import { App } from 'ant-design-vue'
+import { bindFeedback, escapeHtml, lastThemeSnapshot, nowTime, pad, pick, randomInt, toast } from '@aegis/shared'
 import AppIcon from '@/components/AppIcon.vue'
 
 /* ============================================================
@@ -10,6 +11,9 @@ import AppIcon from '@/components/AppIcon.vue'
    本页只需把「模拟循环」换成 SSE 事件监听，交互与样式不动。
    ============================================================ */
 
+// 接入 <a-app> 上下文的 message 实例：toast 才能吃到当前主题（暗色不闪白底）
+bindFeedback(App.useApp().message)
+
 /* ---------- 模板与样本数据（贴近真实 SOC 场景） ---------- */
 const TEMPLATES: Record<string, string> = {
   CEF: 'CEF:0|Security|Aegis-Test|1.0|${event_id}|${event_name}|${severity}|src=${random_ip} dst=192.168.1.20 suser=${user} dhost=WEB-01 msg=Triggered by Aegis sender seq=${seq}',
@@ -17,7 +21,13 @@ const TEMPLATES: Record<string, string> = {
   JSON: '{"facility":"auth","severity":${severity},"event_id":"${event_id}","name":"${event_name}","src":"${random_ip}","dst":"192.168.1.20","user":"${user}","ts":"${timestamp}"}',
   KV: 'time=${timestamp} event_id=${event_id} name=${event_name} sev=${severity} src=${random_ip} dst=192.168.1.20 user=${user} action=deny',
 }
-const TPL_KEYS = Object.keys(TEMPLATES)
+/** 模板选择器的选项（KV 对外展示为 Key-Value） */
+const TPL_OPTIONS = [
+  { label: 'CEF', value: 'CEF' },
+  { label: 'LEEF', value: 'LEEF' },
+  { label: 'JSON', value: 'JSON' },
+  { label: 'Key-Value', value: 'KV' },
+]
 
 /** 事件池：模拟 SIEM 常见告警类型（名称 + severity 0-10） */
 const EVENT_POOL = [
@@ -40,7 +50,7 @@ const VAR_CHIPS = ['${timestamp}', '${seq}', '${random_ip}', '${user}', '${event
 
 /* ---------- 表单状态 ---------- */
 const targetIp = ref('10.12.33.45')
-const targetPort = ref('514') // 协议固定 UDP（TCP/TLS 二期支持）
+const targetPort = ref(514) // 协议固定 UDP（TCP/TLS 二期支持）
 const sendCount = ref(50)
 const sendInterval = ref(200)
 const loopback = ref(true) // 预留后端参数：本地 5140 收自己发的包自证格式
@@ -50,6 +60,13 @@ const tplText = ref(TEMPLATES.CEF)
 
 /** 白名单：真实后端会硬拦 10.0.0.0/8 之外的目标，mock 在前端先拦一道 */
 const whitelistOk = computed(() => /^10\./.test(targetIp.value.trim()))
+
+/** 传输协议选项：UDP 可用，TCP/TLS 二期开放（a-segmented 的 disabled 项） */
+const PROTOCOL_OPTIONS = [
+  { label: 'UDP', value: 'UDP' },
+  { label: 'TCP', value: 'TCP', disabled: true },
+  { label: 'TLS', value: 'TLS', disabled: true },
+]
 
 /* ---------- 发送状态 ---------- */
 const sending = ref(false)
@@ -76,11 +93,23 @@ interface LogLine {
 }
 const logs = ref<LogLine[]>([])
 const termBody = ref<HTMLElement | null>(null)
+
+/**
+ * a-textarea 换回原生 textarea 后这里就是原生元素类型：
+ * 插入变量需要读写光标位置（selectionStart/End/setSelectionRange），
+ * antd 组件实例没有直接暴露这些，原生元素最直接。
+ */
 const tplArea = ref<HTMLTextAreaElement | null>(null)
 
 const progressPct = computed(() =>
   total.value ? Math.min(((sent.value + failed.value) / total.value) * 100, 100) : 0,
 )
+
+/** 进度条渐变跟随基座下发的主题快照（未收到数据前用品牌紫兜底） */
+const gradColors = computed(() => ({
+  from: lastThemeSnapshot.value?.gradFrom ?? '#7c3aed',
+  to: lastThemeSnapshot.value?.gradTo ?? '#c026d3',
+}))
 
 /* ---------- 渲染逻辑 ---------- */
 function randomIp(): { ip: string; ext: boolean } {
@@ -133,9 +162,10 @@ const previewHtml = computed(() => {
   return `<span class="pv-label">▍渲染预览</span><br>${html}`
 })
 
-function switchTpl(key: string): void {
-  currentTpl.value = key
-  tplText.value = TEMPLATES[key]
+/** 切换预设模板：把选中模板的原始文本灌进编辑框（用户可再改） */
+function onTplChange(key: string | number): void {
+  currentTpl.value = String(key)
+  tplText.value = TEMPLATES[currentTpl.value] ?? tplText.value
 }
 
 /** 点击变量 chip 插入到模板光标处 */
@@ -180,6 +210,7 @@ function updateStats(): void {
   rate.value = elapsed.value > 0 ? sent.value / elapsed.value : 0
 }
 
+/** 停止发送：清两个定时器并复位状态；finished=true 表示发完自动停 */
 function stopSend(finished: boolean): void {
   if (sendTimer) clearInterval(sendTimer)
   if (statsTimer) clearInterval(statsTimer)
@@ -193,6 +224,7 @@ function stopSend(finished: boolean): void {
   }
 }
 
+/** 发送节拍：每 interval 发一条，发满 total 后自动停 */
 function tick(): void {
   if (sent.value + failed.value >= total.value) {
     stopSend(true)
@@ -240,20 +272,6 @@ onUnmounted(() => {
   if (statsTimer) clearInterval(statsTimer)
 })
 
-/* ---------- 轻提示（子应用独立于基座的 toast） ---------- */
-interface LocalToast {
-  id: number
-  type: 'ok' | 'bad' | 'info'
-  text: string
-}
-let toastSeq = 0
-const toasts = ref<LocalToast[]>([])
-function toast(text: string, type: LocalToast['type'] = 'ok'): void {
-  const id = ++toastSeq
-  toasts.value.push({ id, type, text })
-  setTimeout(() => { toasts.value = toasts.value.filter((t) => t.id !== id) }, 2800)
-}
-
 function saveTask(): void {
   toast('发送任务已保存，可在「发送历史」中一键复现（mock）')
 }
@@ -281,8 +299,14 @@ function showHistory(): void {
         </div>
       </div>
       <div class="page-header-actions">
-        <button class="btn" @click="saveTask"><AppIcon name="save" :size="13" /> 保存任务</button>
-        <button class="btn" @click="showHistory"><AppIcon name="clock" :size="13" /> 发送历史</button>
+        <a-button @click="saveTask">
+          <template #icon><AppIcon name="save" :size="13" /></template>
+          保存任务
+        </a-button>
+        <a-button @click="showHistory">
+          <template #icon><AppIcon name="clock" :size="13" /></template>
+          发送历史
+        </a-button>
       </div>
     </div>
 
@@ -297,9 +321,15 @@ function showHistory(): void {
         <div class="panel-body">
           <div class="field">
             <label>目标地址（IP : 端口）</label>
-            <div class="input-group">
-              <input v-model="targetIp" class="input input-mono" spellcheck="false" />
-              <input v-model="targetPort" class="input input--short input-mono" spellcheck="false" />
+            <div class="ip-row">
+              <a-input v-model:value="targetIp" class="ip-row__ip" spellcheck="false" />
+              <a-input-number
+                v-model:value="targetPort"
+                class="ip-row__port"
+                :min="1"
+                :max="65535"
+                :controls="false"
+              />
             </div>
             <p class="field-hint" :class="whitelistOk ? 'ok' : 'bad'">
               <template v-if="whitelistOk">
@@ -313,20 +343,23 @@ function showHistory(): void {
 
           <div class="field">
             <label>传输协议</label>
-            <div class="segmented">
-              <button class="seg active">UDP</button>
-              <button class="seg disabled" title="二期支持">TCP <span class="tag-2">二期</span></button>
-              <button class="seg disabled" title="二期支持">TLS <span class="tag-2">二期</span></button>
-            </div>
+            <a-segmented :value="'UDP'" :options="PROTOCOL_OPTIONS" />
+            <p class="field-hint">TCP / TLS 将于二期支持</p>
           </div>
 
           <div class="field">
             <label>发送数量 / 间隔</label>
-            <div class="input-group">
-              <input v-model.number="sendCount" class="input input-mono" type="number" min="1" max="10000" />
-              <input v-model.number="sendInterval" class="input input--short input-mono" type="number" min="50" step="50" title="间隔（毫秒）" />
+            <div class="ip-row">
+              <a-input-number v-model:value="sendCount" class="ip-row__num" :min="1" :max="10000" />
+              <a-input-number
+                v-model:value="sendInterval"
+                class="ip-row__num"
+                :min="50"
+                :step="50"
+                addon-after="ms"
+              />
             </div>
-            <p class="field-hint">间隔单位 ms，最小 50ms · 令牌桶限速将于二期接入</p>
+            <p class="field-hint">间隔最小 50ms · 令牌桶限速将于二期接入</p>
           </div>
 
           <div class="switch-row">
@@ -334,34 +367,33 @@ function showHistory(): void {
               <b>回环监听</b>
               <span>本地 UDP 5140 收自己发的包，自证报文格式</span>
             </div>
-            <label class="switch">
-              <input v-model="loopback" type="checkbox" />
-              <span class="track" /><span class="thumb" />
-            </label>
+            <a-switch v-model:checked="loopback" size="small" />
           </div>
           <div class="switch-row">
             <div class="info">
               <b>变量随机化</b>
               <span>每次发送重新生成 IP / 用户名 / 序号</span>
             </div>
-            <label class="switch">
-              <input v-model="randomize" type="checkbox" />
-              <span class="track" /><span class="thumb" />
-            </label>
+            <a-switch v-model:checked="randomize" size="small" />
           </div>
 
           <div class="send-area">
-            <button
-              class="btn btn-block"
-              :class="sending ? 'btn-danger-outline' : 'btn-primary'"
+            <a-button
+              block
+              :type="sending ? 'default' : 'primary'"
+              :danger="sending"
               @click="toggleSend"
             >
-              <AppIcon name="send" :size="14" />
+              <template #icon><AppIcon name="send" :size="14" /></template>
               {{ sending ? '停止发送' : '开始发送' }}
-            </button>
-            <div class="progress">
-              <div class="bar" :style="{ width: progressPct + '%' }" />
-            </div>
+            </a-button>
+            <a-progress
+              class="send-progress"
+              :percent="progressPct"
+              :show-info="false"
+              :stroke-color="gradColors"
+              size="small"
+            />
           </div>
         </div>
       </section>
@@ -373,26 +405,23 @@ function showHistory(): void {
           <h2>消息模板</h2>
           <span class="sub">变量占位符将在发送时渲染</span>
           <div class="right">
-            <button class="btn" @click="toast('AI 生成模板将在 AI 子应用就绪后接入', 'info')">
-              <AppIcon name="sparkles" :size="12" /> AI 生成模板
-            </button>
+            <a-button size="small" @click="toast('AI 生成模板将在 AI 子应用就绪后接入', 'info')">
+              <template #icon><AppIcon name="sparkles" :size="12" /></template>
+              AI 生成模板
+            </a-button>
           </div>
         </div>
         <div class="panel-body">
           <div class="field">
-            <div class="tpl-chips">
-              <button
-                v-for="key in TPL_KEYS"
-                :key="key"
-                class="chip"
-                :class="{ active: currentTpl === key }"
-                @click="switchTpl(key)"
-              >
-                {{ key === 'KV' ? 'Key-Value' : key }}
-              </button>
-            </div>
+            <a-segmented v-model:value="currentTpl" :options="TPL_OPTIONS" @change="onTplChange" />
           </div>
 
+          <!--
+            模板编辑用原生 textarea 而非 a-textarea：
+            等宽字体 / 行高 / 焦点环是强定制需求，antd 的 CSS-in-JS 样式在运行时
+            注入头部、优先级高于打包样式，覆盖要处处提权，不如原生元素干净。
+            光标插入逻辑也直接依赖原生 selectionStart/End。
+          -->
           <textarea ref="tplArea" v-model="tplText" class="code-area" spellcheck="false" />
 
           <div class="var-section">
@@ -420,8 +449,10 @@ function showHistory(): void {
               <span class="stat">速率 <b>{{ rate.toFixed(1) }}</b> 条/s</span>
               <span class="stat">耗时 <b>{{ elapsed.toFixed(1) }}</b>s</span>
             </div>
-            <button class="btn" @click="autoScroll = !autoScroll">自动滚动：{{ autoScroll ? '开' : '关' }}</button>
-            <button class="btn" @click="clearLogs">清空</button>
+            <a-button size="small" @click="autoScroll = !autoScroll">
+              自动滚动：{{ autoScroll ? '开' : '关' }}
+            </a-button>
+            <a-button size="small" :disabled="logs.length === 0" @click="clearLogs">清空</a-button>
           </div>
         </div>
         <div ref="termBody" class="term-body">
@@ -441,16 +472,6 @@ function showHistory(): void {
           </div>
         </div>
       </section>
-    </div>
-
-    <!-- 轻提示 -->
-    <div class="toasts">
-      <transition-group name="toast">
-        <div v-for="t in toasts" :key="t.id" class="toast" :class="`toast--${t.type}`">
-          <AppIcon :name="t.type === 'ok' ? 'checkCircle' : t.type === 'bad' ? 'xCircle' : 'info'" :size="15" />
-          <span>{{ t.text }}</span>
-        </div>
-      </transition-group>
     </div>
   </div>
 </template>
@@ -490,39 +511,17 @@ function showHistory(): void {
 .panel--template { grid-area: template; }
 .panel--terminal { grid-area: terminal; display: flex; flex-direction: column; }
 
-.tag-2 {
-  font-size: 9px; padding: 0 4px; border-radius: 3px; line-height: 13px;
-  background: rgba(16, 16, 20, 0.07); color: var(--fg-muted); font-family: var(--font-ui);
-}
+/* 地址/数字行：antd 控件组合布局 */
+.ip-row { display: flex; gap: 8px; }
+.ip-row__port { width: 88px; flex: none; }
+.ip-row__num { flex: 1; min-width: 0; }
+/* IP 与端口是技术值，统一等宽字体 */
+.ip-row :deep(input) { font-family: var(--font-mono); }
 
 .send-area { margin-top: 14px; }
-.progress {
-  height: 5px; border-radius: 3px;
-  background: var(--bg-input); overflow: hidden;
-  margin-top: 10px;
-}
-.progress .bar {
-  height: 100%; width: 0%;
-  background: var(--grad-btn);
-  border-radius: 3px; transition: width 0.15s linear;
-}
+.send-progress { margin-top: 10px; }
 
 /* ---------- 模板区 ---------- */
-.tpl-chips { display: flex; gap: 8px; flex-wrap: wrap; }
-.chip {
-  padding: 4px 13px; border-radius: 14px;
-  border: 1px solid var(--border-strong); background: transparent;
-  color: var(--fg-muted); font-size: 12px; cursor: pointer;
-  font-family: var(--font-mono); transition: all var(--ease);
-}
-.chip:hover { color: var(--fg-sub); }
-.chip.active {
-  color: var(--primary);
-  border-color: color-mix(in srgb, var(--primary) 50%, transparent);
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
-  font-weight: 700;
-}
-
 .code-area {
   width: 100%; min-height: 118px; resize: vertical;
   padding: 11px 13px;
@@ -540,6 +539,7 @@ function showHistory(): void {
 .var-section { margin-top: 13px; }
 .var-title { font-size: 11.5px; color: var(--fg-muted); margin-bottom: 8px; }
 .var-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+/* 变量 chip 是品牌化的等宽代码片段按钮，antd 无对应形态，保持自研 */
 .var-chip {
   padding: 3px 10px; border-radius: 7px;
   background: color-mix(in srgb, var(--primary) 7%, transparent);
@@ -619,28 +619,6 @@ function showHistory(): void {
   color: #6b7688; font-size: 12px; text-align: center; line-height: 2;
 }
 .term-empty :deep(svg) { opacity: 0.4; }
-
-/* ---------- 轻提示 ---------- */
-.toasts {
-  position: fixed; top: 14px; right: 16px; z-index: 99;
-  display: flex; flex-direction: column; gap: 9px;
-  pointer-events: none;
-}
-.toast {
-  display: flex; align-items: center; gap: 9px;
-  padding: 10px 15px; min-width: 220px; max-width: 360px;
-  background: var(--bg-float);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow-float);
-  font-size: 12.5px;
-}
-.toast--ok { color: var(--sev-low); }
-.toast--bad { color: var(--sev-critical); }
-.toast--info { color: var(--primary); }
-.toast span { color: var(--fg); }
-.toast-enter-active, .toast-leave-active { transition: all 0.25s ease; }
-.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(14px); }
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 1200px) {

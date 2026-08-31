@@ -2,6 +2,7 @@
   "name": "@aegis/base",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Aegis 基座：登录、布局壳、主题系统、动态菜单、子应用装载",
   "scripts": {
     "dev": "vite",
@@ -12,6 +13,7 @@
     "@aegis/contract": "workspace:*",
     "@aegis/shared": "workspace:*",
     "@micro-zoe/micro-app": "1.0.0-rc.32",
+    "ant-design-vue": "catalog:",
     "pinia": "catalog:",
     "vue": "catalog:",
     "vue-router": "catalog:"
@@ -20,6 +22,7 @@
     "@types/node": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
     "typescript": "catalog:",
+    "unplugin-vue-components": "catalog:",
     "vite": "catalog:",
     "vue-tsc": "catalog:"
   }

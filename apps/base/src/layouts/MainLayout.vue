@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { App } from 'ant-design-vue'
+import { bindFeedback } from '@aegis/shared'
 import { useAppStore } from '@/stores/app'
 import { useMenuStore } from '@/stores/menu'
 import SideMenu from './components/SideMenu.vue'
@@ -12,6 +14,9 @@ import SettingsDrawer from './components/SettingsDrawer.vue'
 const appStore = useAppStore()
 const menuStore = useMenuStore()
 const route = useRoute()
+
+// 本组件渲染在 <a-app> 内：把带主题上下文的 message 实例接入 shared 的 toast 通道
+bindFeedback(App.useApp().message)
 
 onMounted(() => {
   menuStore.ensureLoaded()

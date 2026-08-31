@@ -1,6 +1,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { defineStore } from 'pinia'
 import type { ThemeSnapshot } from '@aegis/contract'
+import { toast } from '@aegis/shared'
 
 /* ================= 主题预设（参考 Vben 的多主题色） ================= */
 export interface ThemePreset {
@@ -62,13 +63,8 @@ export interface TagItem {
   affix?: boolean
 }
 
-export interface ToastItem {
-  id: number
-  type: 'ok' | 'bad' | 'info'
-  text: string
-}
-
-let toastSeq = 0
+/** toast 语义类型：ok=成功 / bad=错误 / info=中性提示 */
+export type ToastType = 'ok' | 'bad' | 'info'
 
 export const useAppStore = defineStore('app', () => {
   /* ---------- 主题 ---------- */
@@ -143,11 +139,12 @@ export const useAppStore = defineStore('app', () => {
   const settingsOpen = ref(false)
 
   /* ---------- Toast ---------- */
-  const toasts = ref<ToastItem[]>([])
-  function pushToast(text: string, type: ToastItem['type'] = 'ok'): void {
-    const id = ++toastSeq
-    toasts.value.push({ id, type, text })
-    setTimeout(() => { toasts.value = toasts.value.filter((t) => t.id !== id) }, 2800)
+  /**
+   * 全局轻提示：转发到 shared 的 toast（内部走 antd message）。
+   * store 里拿不到组件上下文，所以经由 shared 的绑定机制使用带主题的实例。
+   */
+  function pushToast(text: string, type: ToastType = 'ok'): void {
+    toast(text, type)
   }
 
   return {
@@ -166,7 +163,6 @@ export const useAppStore = defineStore('app', () => {
     sidebarCollapsed,
     activeTopGroup,
     settingsOpen,
-    toasts,
     pushToast,
   }
 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { useMenuStore } from '@/stores/menu'
@@ -27,18 +27,7 @@ function toggleTheme(): void {
   appStore.prefs.mode = appStore.resolvedMode === 'dark' ? 'light' : 'dark'
 }
 
-/* ---------- 头像下拉 ---------- */
-const menuOpen = ref(false)
-const avatarWrap = ref<HTMLElement | null>(null)
-
-function onDocClick(e: MouseEvent): void {
-  if (avatarWrap.value && !avatarWrap.value.contains(e.target as Node)) menuOpen.value = false
-}
-onMounted(() => document.addEventListener('click', onDocClick))
-onBeforeUnmount(() => document.removeEventListener('click', onDocClick))
-
 function logout(): void {
-  menuOpen.value = false
   userStore.logout()
   appStore.pushToast('已退出登录', 'info')
   router.push('/login')
@@ -50,14 +39,11 @@ const initial = computed(() => (userStore.userInfo?.nickname || 'A').slice(0, 1)
 <template>
   <header class="topbar">
     <!-- top 布局没有侧栏，logo 移到顶栏 -->
-    <button
-      v-if="layout !== 'top'"
-      class="icon-btn"
-      :title="appStore.sidebarCollapsed ? '展开菜单' : '折叠菜单'"
-      @click="appStore.sidebarCollapsed = !appStore.sidebarCollapsed"
-    >
-      <AppIcon name="panelLeft" :size="17" />
-    </button>
+    <a-tooltip v-if="layout !== 'top'" :title="appStore.sidebarCollapsed ? '展开菜单' : '折叠菜单'">
+      <button class="icon-btn" @click="appStore.sidebarCollapsed = !appStore.sidebarCollapsed">
+        <AppIcon name="panelLeft" :size="17" />
+      </button>
+    </a-tooltip>
     <div v-else class="brand-mini">
       <span class="brand-mini__logo">A</span>
       <b>Aegis</b>
@@ -73,32 +59,35 @@ const initial = computed(() => (userStore.userInfo?.nickname || 'A').slice(0, 1)
 
     <div class="spacer" />
 
-    <button
-      class="icon-btn"
-      :title="appStore.resolvedMode === 'dark' ? '切换到浅色' : '切换到暗色'"
-      @click="toggleTheme"
-    >
-      <AppIcon :name="appStore.resolvedMode === 'dark' ? 'sun' : 'moon'" :size="17" />
-    </button>
-    <button class="icon-btn" title="项目配置" @click="appStore.settingsOpen = true">
-      <AppIcon name="sliders" :size="17" />
-    </button>
+    <a-tooltip :title="appStore.resolvedMode === 'dark' ? '切换到浅色' : '切换到暗色'">
+      <button class="icon-btn" @click="toggleTheme">
+        <AppIcon :name="appStore.resolvedMode === 'dark' ? 'sun' : 'moon'" :size="17" />
+      </button>
+    </a-tooltip>
+    <a-tooltip title="项目配置">
+      <button class="icon-btn" @click="appStore.settingsOpen = true">
+        <AppIcon name="sliders" :size="17" />
+      </button>
+    </a-tooltip>
 
-    <div ref="avatarWrap" class="avatar-wrap">
-      <div class="avatar" :title="userStore.userInfo?.nickname" @click="menuOpen = !menuOpen">
-        {{ initial }}
-      </div>
-      <div v-if="menuOpen" class="avatar-menu">
-        <div class="avatar-menu__head">
-          <b>{{ userStore.userInfo?.nickname }}</b>
-          <span>{{ (userStore.userInfo?.roles || []).join(' · ') || '普通用户' }}</span>
+    <!-- 头像下拉：交互交给 a-dropdown（点击外部关闭、定位、动画都是内建） -->
+    <a-dropdown placement="bottomRight" :trigger="['click']">
+      <div class="avatar">{{ initial }}</div>
+      <template #overlay>
+        <div class="avatar-menu">
+          <div class="avatar-menu__head">
+            <b>{{ userStore.userInfo?.nickname }}</b>
+            <span>{{ (userStore.userInfo?.roles || []).join(' · ') || '普通用户' }}</span>
+          </div>
+          <a-menu :selectable="false">
+            <a-menu-item key="logout" danger @click="logout">
+              <AppIcon name="logout" :size="14" />
+              退出登录
+            </a-menu-item>
+          </a-menu>
         </div>
-        <button class="avatar-menu__item danger" @click="logout">
-          <AppIcon name="logout" :size="14" />
-          退出登录
-        </button>
-      </div>
-    </div>
+      </template>
+    </a-dropdown>
   </header>
 </template>
 
@@ -144,7 +133,6 @@ const initial = computed(() => (userStore.userInfo?.nickname || 'A').slice(0, 1)
 }
 .spacer { flex: 1; }
 
-.avatar-wrap { position: relative; }
 .avatar {
   width: 30px; height: 30px; border-radius: 50%;
   display: grid; place-items: center; cursor: pointer;
@@ -152,14 +140,13 @@ const initial = computed(() => (userStore.userInfo?.nickname || 'A').slice(0, 1)
   color: #fff; font-size: 12px; font-weight: 700;
   box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent);
 }
+/* overlay 虽被传送至 body 渲染，但 scoped data 属性仍挂在这些元素上，样式正常生效 */
 .avatar-menu {
-  position: absolute; top: 40px; right: 0;
   min-width: 180px; padding: 6px;
   background: var(--bg-float);
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow-float);
-  z-index: 50;
 }
 .avatar-menu__head {
   padding: 8px 10px 10px;
@@ -168,17 +155,4 @@ const initial = computed(() => (userStore.userInfo?.nickname || 'A').slice(0, 1)
 }
 .avatar-menu__head b { display: block; font-size: 13px; }
 .avatar-menu__head span { font-size: 11px; color: var(--fg-muted); }
-.avatar-menu__item {
-  width: 100%;
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 10px; border: none; border-radius: 8px;
-  background: transparent; color: var(--fg-sub);
-  font-size: 12.5px; cursor: pointer; font-family: inherit;
-  transition: all var(--ease);
-}
-.avatar-menu__item:hover { background: var(--bg-input); color: var(--fg); }
-.avatar-menu__item.danger { color: var(--sev-critical); }
-.avatar-menu__item.danger:hover {
-  background: color-mix(in srgb, var(--sev-critical) 8%, transparent);
-}
 </style>

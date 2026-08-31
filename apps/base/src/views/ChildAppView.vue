@@ -73,13 +73,18 @@ watch(() => appStore.themeSnapshot, pushTheme, { deep: true })
         <p class="state__sub">micro-app iframe 沙箱 · {{ appUrl }}</p>
       </div>
 
-      <!-- 装载失败：一般是子应用 dev server 没起 -->
-      <div v-if="failed" class="state state--error">
-        <AppIcon name="xCircle" :size="26" />
-        <p>子应用装载失败</p>
-        <p class="state__sub">请确认 soc-tools 已启动（pnpm dev:soc，端口 8002）</p>
-        <button class="btn" @click="retry"><AppIcon name="refresh" :size="13" /> 重试</button>
-      </div>
+      <!-- 装载失败：一般是子应用 dev server 没起，antd 的 a-result 承载错误态 -->
+      <a-result v-if="failed" class="state state--error" status="warning" title="子应用装载失败">
+        <template #subTitle>
+          <p class="state__sub">请确认 soc-tools 已启动（pnpm dev:soc，端口 8002）</p>
+        </template>
+        <template #extra>
+          <a-button type="primary" @click="retry">
+            <template #icon><AppIcon name="refresh" :size="13" /></template>
+            重试
+          </a-button>
+        </template>
+      </a-result>
 
       <!--
         iframe 属性：Vite/ESM 子应用必须用 iframe 沙箱（with-sandbox 拦不住 ESM）

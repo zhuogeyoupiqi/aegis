@@ -54,7 +54,7 @@ function go(item: FlatMenuItem): void {
         <h1>{{ greeting }}，{{ userStore.userInfo?.nickname || '同学' }}</h1>
         <p>{{ today }} · MVP 第 1 周验证版：微前端骨架 + 主题系统 + 第一个 SOC 工具已就位，后端尚未接入。</p>
       </div>
-      <span class="hello__badge">v0.1.0</span>
+      <a-tag class="hello__badge" color="purple">v0.1.0</a-tag>
     </section>
 
     <!-- 统计卡 -->
@@ -87,7 +87,7 @@ function go(item: FlatMenuItem): void {
             <span class="entry__icon"><AppIcon :name="item.icon || 'apps'" :size="17" /></span>
             <b>{{ item.title }}</b>
             <span class="entry__group">{{ item.groupTitle }}</span>
-            <span v-if="item.stub" class="entry__badge">建设中</span>
+            <a-tag v-if="item.stub" class="entry__badge">建设中</a-tag>
           </button>
         </div>
       </section>

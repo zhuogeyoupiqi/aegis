@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { App } from 'ant-design-vue'
+import type { FormInstance, Rule } from 'ant-design-vue/es/form'
+import { bindFeedback } from '@aegis/shared'
 import { useAppStore } from '@/stores/app'
 import { useUserStore } from '@/stores/user'
 import AppIcon from '@/components/AppIcon.vue'
@@ -9,24 +12,35 @@ const router = useRouter()
 const appStore = useAppStore()
 const userStore = useUserStore()
 
-const form = reactive({ account: 'admin', password: '123456', remember: true })
-const showPwd = ref(false)
-const errorTip = ref('')
+// 登录页不在 MainLayout 内，需要自己接入一次 message 上下文实例
+bindFeedback(App.useApp().message)
 
+const formRef = ref<FormInstance>()
+const form = reactive({ account: 'admin', password: '123456', remember: true })
+
+// 表单校验规则：只做非空校验，账号格式等规则等接真实接口时再补
+const rules: Record<string, Rule[]> = {
+  account: [{ required: true, message: '请输入账号', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+}
+
+// 服务端错误（账号密码不对）用 alert 展示，与字段级校验错误区分开
+const loginError = ref('')
+
+/**
+ * 提交登录：绑在 a-form 的 @finish 上——只有校验通过才会进来，
+ * 非空校验失败的提示由 a-form-item 自动渲染，这里不再手动 validate。
+ */
 async function submit(): Promise<void> {
   if (userStore.loading) return
-  if (!form.account.trim() || !form.password) {
-    errorTip.value = '请输入账号和密码'
-    return
-  }
-  errorTip.value = ''
+  loginError.value = ''
   try {
     await userStore.login(form.account.trim(), form.password)
     appStore.pushToast(`欢迎回来，${userStore.userInfo?.nickname}`)
     router.push('/workbench')
   } catch (e) {
-    // mock/真实接口统一在这里展示错误，输入区不成功不跳转
-    errorTip.value = e instanceof Error ? e.message : '登录失败，请稍后重试'
+    // mock/真实接口统一在这里展示错误，校验通过但不成功不跳转
+    loginError.value = e instanceof Error ? e.message : '登录失败，请稍后重试'
   }
 }
 
@@ -94,53 +108,54 @@ function forgot(): void {
           <p>使用平台账号登录（内网系统 · 未授权访问将被记录）</p>
         </header>
 
-        <form @submit.prevent="submit">
-          <div class="field">
-            <label for="account">账号</label>
-            <input
-              id="account"
-              v-model="form.account"
-              class="input"
-              type="text"
+        <!-- 服务端错误横幅：区别于字段校验，登录失败时出现 -->
+        <a-alert
+          v-if="loginError"
+          :message="loginError"
+          type="error"
+          show-icon
+          closable
+          class="login-error"
+          @close="loginError = ''"
+        />
+
+        <a-form
+          ref="formRef"
+          :model="form"
+          :rules="rules"
+          layout="vertical"
+          class="login-form"
+          @finish="submit"
+        >
+          <a-form-item label="账号" name="account">
+            <a-input
+              v-model:value="form.account"
               placeholder="请输入账号"
+              size="large"
               autocomplete="username"
               spellcheck="false"
             />
-          </div>
+          </a-form-item>
 
-          <div class="field">
-            <label for="password">密码</label>
-            <div class="pwd-box">
-              <input
-                id="password"
-                v-model="form.password"
-                class="input"
-                :type="showPwd ? 'text' : 'password'"
-                placeholder="请输入密码"
-                autocomplete="current-password"
-              />
-              <button type="button" class="pwd-eye" :title="showPwd ? '隐藏密码' : '显示密码'" @click="showPwd = !showPwd">
-                <AppIcon :name="showPwd ? 'moon' : 'sun'" :size="14" />
-              </button>
-            </div>
-            <p v-if="errorTip" class="field-hint bad">
-              <AppIcon name="xCircle" :size="11" />
-              {{ errorTip }}
-            </p>
-          </div>
+          <a-form-item label="密码" name="password">
+            <!-- 密码可见性切换是 a-input-password 内建能力，不再手写眼睛按钮；回车提交走表单原生流程（带校验） -->
+            <a-input-password
+              v-model:value="form.password"
+              placeholder="请输入密码"
+              size="large"
+              autocomplete="current-password"
+            />
+          </a-form-item>
 
           <div class="form-row">
-            <label class="remember">
-              <input v-model="form.remember" type="checkbox" />
-              记住我
-            </label>
+            <a-checkbox v-model:checked="form.remember">记住我</a-checkbox>
             <a class="forgot" @click.prevent="forgot">忘记密码？</a>
           </div>
 
-          <button type="submit" class="btn btn-primary btn-block" :class="{ disabled: userStore.loading }">
+          <a-button type="primary" html-type="submit" size="large" block :loading="userStore.loading">
             {{ userStore.loading ? '登录中…' : '登 录' }}
-          </button>
-        </form>
+          </a-button>
+        </a-form>
 
         <p class="demo-tip">演示账号 <span class="kbd">admin</span> · 密码 <span class="kbd">123456</span></p>
 
@@ -231,33 +246,21 @@ function forgot(): void {
 
 /* ---------- 表单区 ---------- */
 .form-pane {
-  padding: 48px 44px 28px;
+  padding: 44px 44px 28px;
   display: flex; flex-direction: column;
 }
 .form-head h1 { font-size: 21px; font-weight: 700; }
 .form-head p { margin-top: 7px; font-size: 12px; color: var(--fg-muted); line-height: 1.6; }
 
-form { margin-top: 30px; }
-.pwd-box { position: relative; }
-.pwd-box .input { padding-right: 38px; }
-.pwd-eye {
-  position: absolute; right: 4px; top: 50%;
-  transform: translateY(-50%);
-  width: 28px; height: 28px;
-  display: grid; place-items: center;
-  background: transparent; border: none;
-  color: var(--fg-muted); cursor: pointer;
-  border-radius: 7px;
-}
-.pwd-eye:hover { color: var(--fg-sub); }
+.login-error { margin-top: 16px; }
+.login-form { margin-top: 24px; }
+.login-form :deep(.ant-form-item) { margin-bottom: 16px; }
 
 .form-row {
   display: flex; align-items: center; justify-content: space-between;
-  margin: 4px 0 18px;
+  margin: -2px 0 20px;
   font-size: 12.5px; color: var(--fg-sub);
 }
-.remember { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
-.remember input { accent-color: var(--primary); }
 .forgot { color: var(--primary); cursor: pointer; }
 .forgot:hover { text-decoration: underline; }
 
