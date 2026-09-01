@@ -24,8 +24,17 @@ export function applyThemeSnapshot(t: ThemeSnapshot): void {
   lastThemeSnapshot.value = t
 }
 
+/** 应用基座下发的一包数据（主题 + 语言） */
+function applyBaseData(data: Record<string, unknown>): void {
+  const t = data?.[CHILD_DATA_KEYS.THEME]
+  if (t) applyThemeSnapshot(t as ThemeSnapshot)
+  const lang = data?.[CHILD_DATA_KEYS.LANG]
+  // 只认契约内的语言值，脏数据直接忽略
+  if (lang === 'zh-CN' || lang === 'en-US') lastLang.value = lang
+}
+
 /**
- * 子应用侧主题桥：监听基座下发的数据并跟随主题。
+ * 子应用侧主题桥：监听基座下发的数据并跟随主题/语言。
  *
  * 为什么放 shared：这是所有子应用接入微前端的标准动作，
  * 集中维护后新子应用一行 useBaseThemeBridge() 即完成主题跟随。
@@ -43,12 +52,11 @@ export function useBaseThemeBridge(): void {
     // 第二个参数 autoTrigger = true：注册时若基座已推送过数据，立即补一次回调。
     // 基座在 micro-app 的 mounted 事件就 setData，而子应用 Vue 挂载（含路由初始
     // 导航）可能晚于该事件——没有这个参数就会错过首次主题，表现为子应用恒为浅色。
-    micro.addDataListener((data: Record<string, unknown>) => {
-      const t = data?.[CHILD_DATA_KEYS.THEME]
-      if (t) applyThemeSnapshot(t as ThemeSnapshot)
-      const lang = data?.[CHILD_DATA_KEYS.LANG]
-      // 只认契约内的语言值，脏数据直接忽略
-      if (lang === 'zh-CN' || lang === 'en-US') lastLang.value = lang
-    }, true)
+    micro.addDataListener(applyBaseData, true)
+
+    // 再显式取一次当前数据：autoTrigger 在部分时机下不会重放（例如基座赋值发生在
+    // 事件中心初始化之前），getData 作为兜底，保证首屏主题/语言不错过。
+    const initial = micro.getData?.() as Record<string, unknown> | undefined
+    if (initial) applyBaseData(initial)
   })
 }

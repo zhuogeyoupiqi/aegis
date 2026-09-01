@@ -56,8 +56,13 @@
   --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
 }
 
-/* ---- 暗色模式：token 整体替换，业务样式零改动 ---- */
-[data-theme='dark'] {
+/* ---- 暗色模式：token 整体替换，业务样式零改动 ----
+   注意：必须用 html[data-theme='dark'] 而不是 [data-theme='dark']。
+   micro-app iframe 沙箱会把子应用的 document.head/documentElement 代理回基座，
+   子应用的 :root 样式会被注入基座 <head>；:root 与 [data-theme='dark'] 特异性相同，
+   后注入的子应用 :root 会覆盖基座暗色变量，导致切到 syslog 时基座变亮。
+   加 html 前缀把特异性提到 (0,2,0)，可免疫该覆盖。 */
+html[data-theme='dark'] {
   --bg-page: #0f1016;
   --bg-card: #171821;
   --bg-float: #1d1e29;
@@ -93,5 +98,5 @@ html.gray-mode { filter: grayscale(1); }
 ::-webkit-scrollbar-thumb { background: rgba(16, 16, 20, 0.14); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(16, 16, 20, 0.24); }
 ::-webkit-scrollbar-track { background: transparent; }
-[data-theme='dark'] ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); }
-[data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.26); }
+html[data-theme='dark'] ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); }
+html[data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.26); }

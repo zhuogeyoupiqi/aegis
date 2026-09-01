@@ -33,7 +33,7 @@ button { font-family: inherit; }
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(16, 16, 20, 0.08);
 }
-[data-theme='dark'] .btn:hover { border-color: rgba(255, 255, 255, 0.3); }
+html[data-theme='dark'] .btn:hover { border-color: rgba(255, 255, 255, 0.3); }
 .btn-primary {
   background: var(--grad-btn);
   border: none; color: #fff; font-weight: 600;
@@ -62,7 +62,7 @@ button { font-family: inherit; }
   box-shadow: var(--shadow-card);
   transition: box-shadow var(--ease);
 }
-[data-theme='dark'] .panel { border-color: rgba(255, 255, 255, 0.05); }
+html[data-theme='dark'] .panel { border-color: rgba(255, 255, 255, 0.05); }
 .panel:hover { box-shadow: var(--shadow-card-hover); }
 .panel-head {
   display: flex; align-items: center; gap: 9px;
@@ -132,7 +132,7 @@ button { font-family: inherit; }
   background: rgba(16, 16, 20, 0.15);
   transition: background var(--ease);
 }
-[data-theme='dark'] .switch .track { background: rgba(255, 255, 255, 0.16); }
+html[data-theme='dark'] .switch .track { background: rgba(255, 255, 255, 0.16); }
 .switch .thumb {
   position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
   border-radius: 50%; background: #fff;
@@ -163,7 +163,7 @@ button { font-family: inherit; }
   transition: all var(--ease);
 }
 .icon-btn:hover { background: rgba(16, 16, 20, 0.06); color: var(--fg); }
-[data-theme='dark'] .icon-btn:hover { background: rgba(255, 255, 255, 0.08); }
+html[data-theme='dark'] .icon-btn:hover { background: rgba(255, 255, 255, 0.08); }
 
 /* ---------- antd 组件衔接补丁 ----------
    antd 主题本体走 ConfigProvider（见 shared/antd-theme.ts），
@@ -193,3 +193,14 @@ button { font-family: inherit; }
   flex，用同一套 gap 兜住裸 svg + 裸文本的组合。
 */
 .ant-dropdown-menu-title-content { display: flex; align-items: center; gap: 8px; }
+
+/*
+  Message 消息提示的图标与文案对齐：
+  antd 默认对 .anticon 用 vertical-align: text-bottom，在全局 13px 字号 + anticon fontSizeLG
+  组合下，绿色圆形图标与右侧文案会出现视觉垂直偏移。把 .ant-message-custom-content
+  改成 flex 容器，让图标与文案强制居中对齐，同时保留 antd 自带的 marginInlineEnd 间距。
+*/
+.ant-message-notice-content .ant-message-custom-content {
+  display: flex;
+  align-items: center;
+}
