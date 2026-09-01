@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 公共件模块：零框架依赖（不引 Spring/MyBatis），任何模块都能安全引用 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.aegis</groupId>
+    <artifactId>aegis-server</artifactId>
+    <version>0.1.0</version>
+  </parent>
+
+  <artifactId>aegis-common</artifactId>
+  <name>aegis-common</name>
+  <description>统一返回 Result、业务异常、错误码、通用工具（零依赖，类比前端 packages/contract）</description>
+
+  <dependencies>
+    <!-- 只引校验注解一个"半依赖"：DTO 放在本模块时需要 @NotBlank 等注解，
+         而 jakarta.validation-api 只有注解没有实现，不会把 Spring 拖进来 -->
+    <dependency>
+      <groupId>jakarta.validation</groupId>
+      <artifactId>jakarta.validation-api</artifactId>
+    </dependency>
+  </dependencies>
+</project>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 资产域模块：组件/片段/文档/标签存储（二期内容，模块先占位保证结构完整） -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.aegis</groupId>
+    <artifactId>aegis-server</artifactId>
+    <version>0.1.0</version>
+  </parent>
+
+  <artifactId>aegis-asset</artifactId>
+  <name>aegis-asset</name>
+  <description>资产域：个人开发资产仓库（占位，随资产库子应用开工实现）</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.aegis</groupId>
+      <artifactId>aegis-framework</artifactId>
+    </dependency>
+  </dependencies>
+</project>

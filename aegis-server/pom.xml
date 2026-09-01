@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Aegis 后端父工程：Maven 多模块的模块化单体（方案文档 §2.2.1）
+  类比前端：相当于 pnpm workspace —— 多个包一次构建部署，保留未来拆分能力。
+
+  为什么不上微服务：单人项目，微服务的网络开销/运维成本远大于收益；
+  模块间用 Maven 依赖 + 包边界约束，需要时再按模块拆出去。
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.3</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>com.aegis</groupId>
+  <artifactId>aegis-server</artifactId>
+  <version>0.1.0</version>
+  <packaging>pom</packaging>
+  <name>aegis-server</name>
+  <description>Aegis 个人能力平台后端：模块化单体（微前端基座/SOC 工具集/资产库共用）</description>
+
+  <!--
+    模块分层（依赖只能自上而下，禁止反向依赖）：
+    admin（启动聚合）→ soc/asset/ai/system（业务模块）→ framework（技术基建）→ common（零依赖公共件）
+    aegis-admin 是唯一含 main 的模块，其余模块不允许有启动类。
+  -->
+  <modules>
+    <module>aegis-common</module>
+    <module>aegis-framework</module>
+    <module>aegis-system</module>
+    <module>aegis-asset</module>
+    <module>aegis-soc</module>
+    <module>aegis-ai</module>
+    <module>aegis-admin</module>
+  </modules>
+
+  <properties>
+    <!-- 选 17 而不是 24：17 是 LTS，Spring Boot 3.x 与主流教程的基准版本，学习期资料最多 -->
+    <java.version>17</java.version>
+    <mybatis-plus.version>3.5.7</mybatis-plus.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- 内部模块版本统一在这里管，子模块引依赖不写版本号（类比 pnpm catalog） -->
+      <dependency>
+        <groupId>com.aegis</groupId>
+        <artifactId>aegis-common</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.aegis</groupId>
+        <artifactId>aegis-framework</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.aegis</groupId>
+        <artifactId>aegis-system</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.aegis</groupId>
+        <artifactId>aegis-asset</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.aegis</groupId>
+        <artifactId>aegis-soc</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.aegis</groupId>
+        <artifactId>aegis-ai</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <!-- MyBatis-Plus 的 Boot3 专用 starter（boot2 的 starter 不兼容 Spring Boot 3） -->
+      <dependency>
+        <groupId>com.baomidou</groupId>
+        <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+        <version>${mybatis-plus.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+</project>

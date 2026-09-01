@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 技术基建模块：全局异常/MyBatis-Plus 配置/审计切面/操作人上下文（方案文档 §2.2.1） -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.aegis</groupId>
+    <artifactId>aegis-server</artifactId>
+    <version>0.1.0</version>
+  </parent>
+
+  <artifactId>aegis-framework</artifactId>
+  <name>aegis-framework</name>
+  <description>技术基建：统一返回落地、全局异常、审计日志、MyBatis-Plus 配置、操作人上下文</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.aegis</groupId>
+      <artifactId>aegis-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <!-- 参数校验（DTO 上的 @NotBlank 等） -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+    <!-- 审计切面依赖 AOP -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-aop</artifactId>
+    </dependency>
+    <!-- MyBatis-Plus：BaseEntity 的注解与 Mapper 基类都来自它 -->
+    <dependency>
+      <groupId>com.baomidou</groupId>
+      <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+    </dependency>
+  </dependencies>
+</project>

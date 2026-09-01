@@ -6,3 +6,7 @@ coverage/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Java 后端构建产物（Maven）
+aegis-server/**/target/
+*.class

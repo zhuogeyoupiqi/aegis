@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 系统域模块：配置项（本阶段实现）；用户/角色/菜单随登录阶段实现（表已建好） -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.aegis</groupId>
+    <artifactId>aegis-server</artifactId>
+    <version>0.1.0</version>
+  </parent>
+
+  <artifactId>aegis-system</artifactId>
+  <name>aegis-system</name>
+  <description>系统域：用户/角色/菜单/配置项/操作日志（登录接入前的最小实现：sys_config）</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.aegis</groupId>
+      <artifactId>aegis-framework</artifactId>
+    </dependency>
+  </dependencies>
+</project>
