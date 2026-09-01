@@ -12,9 +12,8 @@ export function pad(n: number): string {
   return n < 10 ? '0' + n : '' + n
 }
 
-/** 当前时刻 HH:mm:ss.SSS（日志行时间戳用） */
-export function nowTime(): string {
-  const d = new Date()
+/** 时刻 HH:mm:ss.SSS（日志行时间戳用）；不传参取当前时刻，传参则格式化指定时刻 */
+export function nowTime(d: Date = new Date()): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${('00' + d.getMilliseconds()).slice(-3)}`
 }
 

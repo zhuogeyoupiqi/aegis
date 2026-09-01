@@ -3,19 +3,51 @@ import { computed, nextTick, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { App } from 'ant-design-vue'
 import { bindFeedback, escapeHtml, lastThemeSnapshot, nowTime, pad, pick, randomInt, toast } from '@aegis/shared'
+import {
+  clearHistoryTasks,
+  deleteHistoryTask,
+  deletePreset,
+  getApiMode,
+  listHistory,
+  listPresets,
+  savePreset,
+  setApiMode,
+  startSendTask,
+  type ApiMode,
+  type RenderedMessage,
+  type SendDriverEvent,
+  type SendHandle,
+  type SendPreset,
+  type TaskHistoryItem,
+} from '@/api'
 import AppIcon from '@/components/AppIcon.vue'
 
 /* ============================================================
    Syslog 发包器 —— SOC 工具集第 1 个真实工具
-   当前为纯前端 mock：发送动作用 setInterval 模拟。
-   真实实现（第 2 周后端就绪）：后端 DatagramSocket 直发 + SSE 回传，
-   本页只需把「模拟循环」换成 SSE 事件监听，交互与样式不动。
+   传输已抽到 @/api（mock / real 双驱动，页头开关一键切换）：
+   - mock：前端定时器模拟发送（保留，不依赖后端）
+   - real：POST 建任务 → 后端 DatagramSocket 直发 → SSE 实时回传
+   本页只负责：表单、模板渲染（渲染在前端）、终端展示与统计。
    ============================================================ */
 
 const { t } = useI18n()
 
-// 接入 <a-app> 上下文的 message 实例：toast 才能吃到当前主题（暗色不闪白底）
-bindFeedback(App.useApp().message)
+// 接入 <a-app> 上下文：toast 与确认弹窗（modal.confirm）都要吃当前主题（暗色不闪白底）
+const { message: antdMessage, modal } = App.useApp()
+bindFeedback(antdMessage)
+
+/* ---------- 数据源模式（mock / real 一处切换，localStorage 持久化） ---------- */
+const apiMode = ref<ApiMode>(getApiMode())
+/** 开关选项用 computed：语言切换时标签跟着变 */
+const MODE_OPTIONS = computed(() => [
+  { label: t('syslog.sourceMock'), value: 'mock' },
+  { label: t('syslog.sourceReal'), value: 'real' },
+])
+/** 切模式只持久化，不打断进行中的任务（下一次「开始发送」才生效） */
+function onModeChange(v: string | number): void {
+  apiMode.value = v as ApiMode
+  setApiMode(v as ApiMode)
+}
 
 /* ---------- 模板与样本数据（贴近真实 SOC 场景） ---------- */
 const TEMPLATES: Record<string, string> = {
@@ -61,8 +93,13 @@ const randomize = ref(true) // 关闭后使用固定样本，便于复现问题
 const currentTpl = ref('CEF')
 const tplText = ref(TEMPLATES.CEF)
 
-/** 白名单：真实后端会硬拦 10.0.0.0/8 之外的目标，mock 在前端先拦一道 */
-const whitelistOk = computed(() => /^10\./.test(targetIp.value.trim()))
+/**
+ * 白名单前端预检：与后端默认白名单（sys_config 的 syslog.whitelist）保持同口径——
+ * RFC1918 三个私有段 + 回环段。前端拦的是体验（立即红字），真正的强制约束在后端；
+ * 两边口径不一致会造成"前端放行后端拦"或反之的困惑。
+ */
+const WHITELIST_RE = /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/
+const whitelistOk = computed(() => WHITELIST_RE.test(targetIp.value.trim()))
 
 /** 传输协议选项：UDP 可用，TCP/TLS 二期开放（a-segmented 的 disabled 项） */
 const PROTOCOL_OPTIONS = [
@@ -76,13 +113,11 @@ const sending = ref(false)
 const sent = ref(0)
 const failed = ref(0)
 const total = ref(0)
-const startTime = ref(0)
 const elapsed = ref(0)
 const rate = ref(0)
 const autoScroll = ref(true)
-let sendTimer: ReturnType<typeof setInterval> | null = null
-let statsTimer: ReturnType<typeof setInterval> | null = null
-let failAt = -1
+/** 进行中任务的句柄（驱动层提供 cancel/dispose，本页不碰定时器） */
+let sendHandle: SendHandle | null = null
 
 /** 单条终端日志（msg 为转义 + IP 高亮后的 HTML 片段） */
 interface LogLine {
@@ -189,24 +224,24 @@ function insertVar(v: string): void {
   toast(t('syslog.insertedVar', { var: v }), 'info')
 }
 
-/* ---------- 发送模拟 ---------- */
+/* ---------- 发送（mock / real 双模式，逻辑在 @/api 驱动层） ---------- */
 /** 把一次发送结果追加进终端：转义 + IP 高亮 + 行数上限 + 自动滚动 */
-function appendLine(r: RenderResult, seq: number, isFail: boolean): void {
-  const lv = sevLevel(r.evt.sev)
+function appendLine(r: RenderedMessage, seq: number, isFail: boolean, ts: number): void {
+  const lv = sevLevel(r.severity)
   const html = escapeHtml(r.text).replace(
-    r.src.ip,
-    `<span class="ip-${r.src.ext ? 'ext' : 'int'}">${r.src.ip}</span>`,
+    r.srcIp,
+    `<span class="ip-${r.srcExt ? 'ext' : 'int'}">${r.srcIp}</span>`,
   )
   logs.value.push({
     seq,
-    ts: nowTime(),
+    ts: nowTime(new Date(ts)),
     fail: isFail,
     sevCls: lv.cls,
     sevKey: lv.key,
-    sevNum: r.evt.sev,
+    sevNum: r.severity,
     html,
   })
-  // 行数上限 600：长任务防内存膨胀（真实实现同理）
+  // 行数上限 600：长任务防内存膨胀（mock/real 同一上限）
   if (logs.value.length > 600) logs.value.splice(0, logs.value.length - 600)
   if (autoScroll.value) {
     nextTick(() => {
@@ -215,49 +250,55 @@ function appendLine(r: RenderResult, seq: number, isFail: boolean): void {
   }
 }
 
-/** 重算耗时与速率：节拍内即时更新 + 300ms 定时器兜底（发送结束后速率定格） */
-function updateStats(): void {
-  elapsed.value = (Date.now() - startTime.value) / 1000
-  rate.value = elapsed.value > 0 ? sent.value / elapsed.value : 0
-}
-
-/** 停止发送：清两个定时器并复位状态；finished=true 表示发完自动停 */
-function stopSend(finished: boolean): void {
-  if (sendTimer) clearInterval(sendTimer)
-  if (statsTimer) clearInterval(statsTimer)
-  sendTimer = null
-  statsTimer = null
-  sending.value = false
-  if (finished) {
-    toast(
-      t('syslog.doneToast', {
-        total: sent.value + failed.value,
-        failed: failed.value,
-        rate: rate.value.toFixed(1),
-      }),
-    )
+/** 驱动事件的统一分发：视图对 mock/real 的全部差异都被这一层抹平 */
+function onDriverEvent(ev: SendDriverEvent): void {
+  switch (ev.kind) {
+    case 'line':
+      if (ev.ok) sent.value++
+      else failed.value++
+      appendLine(ev.rendered, ev.seq, !ev.ok, ev.ts)
+      break
+    case 'stats':
+      // stats 携带绝对值直接覆盖，与 line 分支的自增不会叠加出偏差
+      sent.value = ev.sent
+      failed.value = ev.failed
+      rate.value = ev.rate
+      elapsed.value = ev.elapsedMs / 1000
+      break
+    case 'done':
+      sendHandle = null
+      sending.value = false
+      if (ev.status === 'DONE') {
+        toast(
+          t('syslog.doneToast', {
+            total: ev.sent + ev.failed,
+            failed: ev.failed,
+            rate: rate.value.toFixed(1),
+          }),
+        )
+      } else if (ev.status === 'FAILED') {
+        // CANCELLED 的提示在点击停止按钮时已发过，这里不重复
+        toast(ev.error ?? t('syslog.taskFailed'), 'bad')
+      }
+      break
+    case 'fatal':
+      sendHandle = null
+      sending.value = false
+      toast(ev.message, 'bad')
+      break
   }
 }
 
-/** 发送节拍：每 interval 发一条，发满 total 后自动停 */
-function tick(): void {
-  if (sent.value + failed.value >= total.value) {
-    stopSend(true)
-    return
-  }
-  const seq = sent.value + failed.value + 1
-  const isFail = seq === failAt
+/** 驱动层的渲染回调：模板渲染在本页（渲染在前端），映射成驱动约定的形状 */
+function renderForDriver(seq: number): RenderedMessage {
   const r = renderTemplate(tplText.value, seq)
-  if (isFail) failed.value++
-  else sent.value++
-  appendLine(r, seq, isFail)
-  updateStats()
+  return { text: r.text, severity: r.evt.sev, srcIp: r.src.ip, srcExt: r.src.ext }
 }
 
-/** 启停发送的总入口：停止 / 白名单拦截 / 组装参数并启动节拍定时器 */
-function toggleSend(): void {
+/** 启停发送的总入口：停止 / 白名单拦截 / 组装参数交给驱动层 */
+async function toggleSend(): Promise<void> {
   if (sending.value) {
-    stopSend(false)
+    sendHandle?.cancel()
     toast(t('syslog.stopped'), 'info')
     return
   }
@@ -265,17 +306,31 @@ function toggleSend(): void {
     toast(t('syslog.wlBlocked'), 'bad')
     return
   }
-  total.value = Math.max(1, Math.floor(sendCount.value) || 50)
+  // 2000 是后端单任务上限（DTO @Size 校验），前端先收紧避免白跑一趟
+  total.value = Math.min(2000, Math.max(1, Math.floor(sendCount.value) || 50))
   const interval = Math.max(50, Math.floor(sendInterval.value) || 200)
   sent.value = 0
   failed.value = 0
-  startTime.value = Date.now()
-  // 数量 ≥ 20 时随机失败一条，让失败统计与红色行真实可见
-  failAt = total.value >= 20 ? randomInt(5, total.value - 1) : -1
+  elapsed.value = 0
+  rate.value = 0
   sending.value = true
-  updateStats()
-  sendTimer = setInterval(tick, interval)
-  statsTimer = setInterval(updateStats, 300)
+  try {
+    sendHandle = await startSendTask(
+      {
+        targetIp: targetIp.value.trim(),
+        targetPort: targetPort.value,
+        templateKey: currentTpl.value,
+        intervalMs: interval,
+        count: total.value,
+        render: renderForDriver,
+      },
+      onDriverEvent,
+    )
+  } catch (err) {
+    // 创建失败（白名单被后端拦 / 后端未启动）：恢复空闲态并给出可读原因
+    sending.value = false
+    toast(err instanceof Error ? err.message : String(err), 'bad')
+  }
 }
 
 /** 清空终端日志（不影响统计数字） */
@@ -283,17 +338,248 @@ function clearLogs(): void {
   logs.value = []
 }
 
-// 组件卸载必须清定时器：微前端下子应用会被频繁销毁重建
+// 组件卸载必须停会话：微前端下子应用会被频繁销毁重建
+// dispose 连事件流一起关（cancel 还会等 done 事件，卸载后没人消费）
 onUnmounted(() => {
-  if (sendTimer) clearInterval(sendTimer)
-  if (statsTimer) clearInterval(statsTimer)
+  sendHandle?.dispose()
+  sendHandle = null
 })
 
-function saveTask(): void {
-  toast(t('syslog.savedTask'))
+/* ============================================================
+   保存任务（配置预设）+ 发送历史
+   两个入口共用 @/api/history 的读写层：
+   - 保存：当前表单整体存一条预设（real=soc_send_preset 表，mock=localStorage）
+   - 历史：real 读后端留痕表（soc_send_task），mock 读本地记录
+   载入/复现只是把字段回填进表单，不直接触发发送——回填后人工点「开始发送」，
+   与"保存的是配置不是任务"的语义一致。
+   ============================================================ */
+
+/* ---------- 保存预设弹窗 ---------- */
+const saveOpen = ref(false)
+const presetName = ref('')
+const savingPreset = ref(false)
+
+/** 弹窗里实时预览将要保存的配置摘要，让用户在点确定前就能核对内容 */
+const presetSummaryPreview = computed(
+  () =>
+    `${targetIp.value.trim()}:${targetPort.value} · ${currentTpl.value} · ×${sendCount.value} · ${sendInterval.value}ms · ${randomize.value ? 'rand' : 'fixed'}`,
+)
+
+/** 打开保存弹窗：默认名概括核心参数，多数场景不用改直接存 */
+function openSaveModal(): void {
+  presetName.value = `${currentTpl.value} → ${targetIp.value}:${targetPort.value} × ${sendCount.value}`
+  saveOpen.value = true
 }
-function showHistory(): void {
-  toast(t('syslog.historyToast'), 'info')
+
+/** 确认保存：空名由确定按钮禁用兜底，这里只做提交与异常提示 */
+async function confirmSavePreset(): Promise<void> {
+  const name = presetName.value.trim()
+  if (!name) return
+  savingPreset.value = true
+  try {
+    await savePreset({
+      name,
+      targetIp: targetIp.value.trim(),
+      targetPort: targetPort.value,
+      templateKey: currentTpl.value,
+      templateContent: tplText.value,
+      count: Math.max(1, Math.floor(sendCount.value) || 50),
+      intervalMs: Math.max(50, Math.floor(sendInterval.value) || 200),
+      randomize: randomize.value,
+    })
+    toast(t('syslog.presetSaved', { name }))
+    saveOpen.value = false
+  } catch (err) {
+    toast(err instanceof Error ? err.message : String(err), 'bad')
+  } finally {
+    savingPreset.value = false
+  }
+}
+
+/* ---------- 历史抽屉 ---------- */
+const histOpen = ref(false)
+const histTab = ref('history')
+const historyLoading = ref(false)
+const presetLoading = ref(false)
+const historyList = ref<TaskHistoryItem[]>([])
+const presetList = ref<SendPreset[]>([])
+
+/** 历史表列定义用 computed：语言切换时表头文案跟着变 */
+const histColumns = computed(() => [
+  { title: t('syslog.colTime'), key: 'createTime', width: 140 },
+  { title: t('syslog.colTarget'), key: 'target', width: 150 },
+  { title: t('syslog.colTpl'), dataIndex: 'templateKey', width: 70 },
+  { title: t('syslog.colCount'), key: 'count', width: 110 },
+  { title: t('syslog.colStatus'), key: 'status', width: 86 },
+  { title: t('syslog.colDuration'), key: 'duration', width: 76 },
+  { title: t('syslog.colAction'), key: 'action', width: 110 },
+])
+const presetColumns = computed(() => [
+  { title: t('syslog.colName'), dataIndex: 'name', key: 'name', width: 180 },
+  { title: t('syslog.colSummary'), key: 'summary' },
+  { title: t('syslog.colAction'), key: 'action', width: 116 },
+])
+
+/** 状态 → a-tag 颜色（未知值兜底 default，后端加新状态也不至于渲染崩） */
+function statusColor(s: string): string {
+  return (
+    {
+      DONE: 'success',
+      FAILED: 'error',
+      CANCELLED: 'default',
+      RUNNING: 'processing',
+    } as Record<string, string>
+  )[s] ?? 'default'
+}
+
+/** 状态 → 词条 key（动态 key 与终端 sev 徽标同一套路） */
+function statusLabel(s: string): string {
+  const map: Record<string, string> = {
+    DONE: 'stDone',
+    FAILED: 'stFailed',
+    CANCELLED: 'stCancelled',
+    RUNNING: 'stRunning',
+  }
+  return t(`syslog.${map[s] ?? 'stRunning'}`)
+}
+
+/** ISO 时间转可读格式（2026-09-01T10:20:30 → 2026-09-01 10:20:30） */
+function fmtTime(iso?: string | null): string {
+  return iso ? iso.replace('T', ' ').slice(0, 19) : '—'
+}
+
+/** 毫秒时长自适应单位：短任务看 ms 更直观，长任务看秒 */
+function fmtDuration(ms?: number | null): string {
+  if (ms == null) return '—'
+  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
+}
+
+/** 预设摘要：一行说清"发到哪、什么格式、多少条、什么节奏" */
+function presetSummary(p: SendPreset): string {
+  return `${p.targetIp}:${p.targetPort} · ${p.templateKey} · ×${p.count} · ${p.intervalMs}ms`
+}
+
+/** 打开抽屉即拉两份数据：历史和预设一起加载，切 tab 不再等待 */
+async function openHistory(): Promise<void> {
+  histOpen.value = true
+  await Promise.all([loadHistory(), loadPresets()])
+}
+
+async function loadHistory(): Promise<void> {
+  historyLoading.value = true
+  try {
+    historyList.value = await listHistory()
+  } catch (err) {
+    toast(err instanceof Error ? err.message : String(err), 'bad')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+async function loadPresets(): Promise<void> {
+  presetLoading.value = true
+  try {
+    presetList.value = await listPresets()
+  } catch (err) {
+    toast(err instanceof Error ? err.message : String(err), 'bad')
+  } finally {
+    presetLoading.value = false
+  }
+}
+
+/** 发送进行中禁止回填：改表单会影响当前任务的渲染上下文，先停再载入 */
+function guardLoading(): boolean {
+  if (!sending.value) return false
+  toast(t('syslog.loadBlockedSending'), 'bad')
+  return true
+}
+
+/** 删除单条历史：后端逻辑删除（列表消失、底账保留），确认文案里把这点说清楚 */
+function removeHistoryTask(item: TaskHistoryItem): void {
+  modal.confirm({
+    title: t('syslog.confirmDeleteTask'),
+    content: `${item.targetIp}:${item.targetPort} · ×${item.totalCount} · ${fmtTime(item.createTime)}`,
+    okText: t('syslog.actionDelete'),
+    okButtonProps: { danger: true },
+    cancelText: t('syslog.actionCancel'),
+    onOk: async () => {
+      try {
+        await deleteHistoryTask(item.id)
+        await loadHistory()
+        toast(t('syslog.taskDeleted'))
+      } catch (err) {
+        toast(err instanceof Error ? err.message : String(err), 'bad')
+      }
+    },
+  })
+}
+
+/** 一键清空终态任务：影响面大（全量），确认文案比单条删除更重 */
+function clearFinishedHistory(): void {
+  modal.confirm({
+    title: t('syslog.confirmClearHistory'),
+    okText: t('syslog.actionDelete'),
+    okButtonProps: { danger: true },
+    cancelText: t('syslog.actionCancel'),
+    onOk: async () => {
+      try {
+        const n = await clearHistoryTasks()
+        await loadHistory()
+        toast(t('syslog.historyCleared', { n }))
+      } catch (err) {
+        toast(err instanceof Error ? err.message : String(err), 'bad')
+      }
+    },
+  })
+}
+
+/** 复现历史任务：把当时的目标/数量/间隔回填表单（模板只留了 key，回退到内置骨架） */
+function applyHistory(item: TaskHistoryItem): void {
+  if (guardLoading()) return
+  targetIp.value = item.targetIp
+  targetPort.value = item.targetPort
+  sendCount.value = item.totalCount
+  sendInterval.value = item.intervalMs
+  if (TEMPLATES[item.templateKey]) {
+    currentTpl.value = item.templateKey
+    tplText.value = TEMPLATES[item.templateKey]
+  }
+  histOpen.value = false
+  toast(t('syslog.configLoaded'))
+}
+
+/** 载入预设：字段齐全（含模板全文与随机化开关），比历史复现保真 */
+function applyPreset(p: SendPreset): void {
+  if (guardLoading()) return
+  targetIp.value = p.targetIp
+  targetPort.value = p.targetPort
+  sendCount.value = p.count
+  sendInterval.value = p.intervalMs
+  randomize.value = p.randomize
+  currentTpl.value = p.templateKey
+  tplText.value = p.templateContent
+  histOpen.value = false
+  toast(t('syslog.configLoaded'))
+}
+
+/** 删除预设：二次确认（不可恢复的操作，危险按钮样式） */
+function removePreset(p: SendPreset): void {
+  modal.confirm({
+    title: t('syslog.confirmDeletePreset', { name: p.name }),
+    okText: t('syslog.actionDelete'),
+    okButtonProps: { danger: true },
+    cancelText: t('syslog.actionCancel'),
+    onOk: async () => {
+      try {
+        await deletePreset(p.id)
+        await loadPresets()
+        toast(t('syslog.presetDeleted'))
+      } catch (err) {
+        // 不向上抛：确认框正常关闭，错误用 toast 呈现，用户可直接重试
+        toast(err instanceof Error ? err.message : String(err), 'bad')
+      }
+    },
+  })
 }
 </script>
 
@@ -313,11 +599,18 @@ function showHistory(): void {
         </div>
       </div>
       <div class="page-header-actions">
-        <a-button @click="saveTask">
+        <!-- 数据源开关：mock/real 的唯一控制点，选择持久化在 localStorage -->
+        <a-segmented
+          :value="apiMode"
+          :options="MODE_OPTIONS"
+          size="small"
+          @change="onModeChange"
+        />
+        <a-button @click="openSaveModal">
           <template #icon><AppIcon name="save" :size="13" /></template>
           {{ t('syslog.saveTask') }}
         </a-button>
-        <a-button @click="showHistory">
+        <a-button @click="openHistory">
           <template #icon><AppIcon name="clock" :size="13" /></template>
           {{ t('syslog.history') }}
         </a-button>
@@ -364,7 +657,7 @@ function showHistory(): void {
           <div class="field">
             <label>{{ t('syslog.countLabel') }}</label>
             <div class="ip-row">
-              <a-input-number v-model:value="sendCount" class="ip-row__num" :min="1" :max="10000" />
+              <a-input-number v-model:value="sendCount" class="ip-row__num" :min="1" :max="2000" />
               <a-input-number
                 v-model:value="sendInterval"
                 class="ip-row__num"
@@ -489,6 +782,122 @@ function showHistory(): void {
         </div>
       </section>
     </div>
+
+    <!-- 保存配置预设弹窗：确定按钮随名称非空解锁，摘要实时预览将存下的内容 -->
+    <a-modal
+      v-model:open="saveOpen"
+      :title="t('syslog.savePresetTitle')"
+      :ok-text="t('syslog.actionSave')"
+      :cancel-text="t('syslog.actionCancel')"
+      :confirm-loading="savingPreset"
+      :ok-button-props="{ disabled: !presetName.trim() }"
+      @ok="confirmSavePreset"
+    >
+      <div class="preset-form">
+        <label>{{ t('syslog.presetNameLabel') }}</label>
+        <a-input
+          v-model:value="presetName"
+          :maxlength="64"
+          :placeholder="t('syslog.presetNamePh')"
+          @press-enter="confirmSavePreset"
+        />
+        <p class="preset-summary">{{ presetSummaryPreview }}</p>
+      </div>
+    </a-modal>
+
+    <!-- 发送历史抽屉：历史任务（留痕）与保存的配置（预设）两个页签 -->
+    <a-drawer v-model:open="histOpen" :title="t('syslog.histTitle')" width="780">
+      <a-tabs v-model:active-key="histTab">
+        <!-- 清空按钮只挂在历史页签：预设是用户主动存的，不参与批量清理 -->
+        <template #rightExtra>
+          <a-button
+            v-if="histTab === 'history'"
+            size="small"
+            danger
+            :disabled="historyList.length === 0 || historyLoading"
+            @click="clearFinishedHistory"
+          >
+            {{ t('syslog.clearFinished') }}
+          </a-button>
+        </template>
+        <a-tab-pane key="history" :tab="t('syslog.tabHistory')">
+          <a-table
+            :columns="histColumns"
+            :data-source="historyList"
+            :loading="historyLoading"
+            :pagination="false"
+            :scroll="{ y: 420 }"
+            row-key="id"
+            size="small"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'createTime'">
+                <span class="cell-mono">{{ fmtTime(record.createTime) }}</span>
+              </template>
+              <template v-else-if="column.key === 'target'">
+                <span class="cell-mono">{{ record.targetIp }}:{{ record.targetPort }}</span>
+              </template>
+              <template v-else-if="column.key === 'count'">
+                <span class="cell-mono">{{ record.sentCount }}/{{ record.totalCount }}</span>
+                <span v-if="record.failedCount > 0" class="cell-fail"> ✕{{ record.failedCount }}</span>
+              </template>
+              <template v-else-if="column.key === 'status'">
+                <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
+              </template>
+              <template v-else-if="column.key === 'duration'">
+                <span class="cell-mono">{{ fmtDuration(record.durationMs) }}</span>
+              </template>
+              <template v-else-if="column.key === 'action'">
+                <a-button
+                  type="link"
+                  size="small"
+                  :disabled="sending"
+                  @click="applyHistory(record)"
+                >
+                  {{ t('syslog.actionReplay') }}
+                </a-button>
+                <!-- RUNNING 行删除禁用：后端也会拦（B0002），前端先给视觉反馈 -->
+                <a-button
+                  type="link"
+                  size="small"
+                  danger
+                  :disabled="record.status === 'RUNNING'"
+                  @click="removeHistoryTask(record)"
+                >
+                  {{ t('syslog.actionDelete') }}
+                </a-button>
+              </template>
+            </template>
+          </a-table>
+        </a-tab-pane>
+
+        <a-tab-pane key="presets" :tab="t('syslog.tabPresets')">
+          <a-table
+            :columns="presetColumns"
+            :data-source="presetList"
+            :loading="presetLoading"
+            :pagination="false"
+            :scroll="{ y: 420 }"
+            row-key="id"
+            size="small"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'summary'">
+                <span class="cell-mono">{{ presetSummary(record) }}</span>
+              </template>
+              <template v-else-if="column.key === 'action'">
+                <a-button type="link" size="small" :disabled="sending" @click="applyPreset(record)">
+                  {{ t('syslog.actionLoad') }}
+                </a-button>
+                <a-button type="link" size="small" danger @click="removePreset(record)">
+                  {{ t('syslog.actionDelete') }}
+                </a-button>
+              </template>
+            </template>
+          </a-table>
+        </a-tab-pane>
+      </a-tabs>
+    </a-drawer>
   </div>
 </template>
 
@@ -636,6 +1045,19 @@ function showHistory(): void {
   color: #6b7688; font-size: 12px; text-align: center; line-height: 2;
 }
 .term-empty :deep(svg) { opacity: 0.4; }
+
+/* ---------- 保存预设弹窗 / 历史抽屉 ---------- */
+.preset-form { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+.preset-form label { font-size: 12.5px; font-weight: 600; }
+/* 摘要是技术值串（IP/模板/数量），等宽展示便于扫读 */
+.preset-summary {
+  font-size: 11.5px; color: var(--fg-muted);
+  font-family: var(--font-mono); word-break: break-all;
+  padding: 8px 10px; border-radius: var(--radius-ctl);
+  background: var(--bg-input);
+}
+.cell-mono { font-family: var(--font-mono); font-size: 11.5px; }
+.cell-fail { color: var(--sev-critical); font-family: var(--font-mono); font-size: 11.5px; }
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 1200px) {

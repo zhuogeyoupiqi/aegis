@@ -27,5 +27,13 @@ export default defineConfig({
   },
   server: {
     port: 8002,
+    // /api 转发到本地 aegis-server 8090（8080 被 miku/soc-web dev server 占用）
+    // SSE 分块响应在 http-proxy 下正常透传
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8090',
+        changeOrigin: true,
+      },
+    },
   },
 })
