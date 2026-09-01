@@ -189,10 +189,10 @@ function ctxCloseOthers(): void {
 }
 .tab.active .tab__strip { background: var(--tab-color); }
 .tab__title { overflow: hidden; text-overflow: ellipsis; }
-.tab__pin { color: var(--tab-color); display: grid; place-items: center; }
+.tab__pin { color: var(--tab-color); display: flex; align-items: center; justify-content: center; }
 .tab__close {
   width: 16px; height: 16px; border-radius: 4px;
-  display: grid; place-items: center;
+  display: flex; align-items: center; justify-content: center;
   color: var(--fg-muted); opacity: 0;
   transition: all var(--ease);
 }

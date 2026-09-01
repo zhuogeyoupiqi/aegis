@@ -631,7 +631,8 @@ function showHistory(): void {
 .sev-badge.lv-low { color: var(--sev-low-v); background: rgba(74, 222, 128, 0.1); box-shadow: inset 0 0 0 1px rgba(74, 222, 128, 0.4); }
 
 .term-empty {
-  height: 100%; display: grid; place-items: center;
+  height: 100%;
+  display: flex; align-items: center; justify-content: center;
   color: #6b7688; font-size: 12px; text-align: center; line-height: 2;
 }
 .term-empty :deep(svg) { opacity: 0.4; }

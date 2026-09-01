@@ -140,7 +140,7 @@ function resetAll(): void {
 .swatch {
   width: 30px; height: 30px; border-radius: 50%;
   border: 2px solid transparent; color: #fff;
-  display: grid; place-items: center;
+  display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   transition: transform var(--ease), border-color var(--ease);
 }

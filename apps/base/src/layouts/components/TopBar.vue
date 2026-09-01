@@ -115,7 +115,7 @@ const roleText = computed(() => (userStore.userInfo?.roles || []).join(' · ') |
 .brand-mini { display: flex; align-items: center; gap: 8px; }
 .brand-mini__logo {
   width: 26px; height: 26px; border-radius: 8px;
-  display: grid; place-items: center;
+  display: flex; align-items: center; justify-content: center;
   background: var(--grad-brand);
   color: #fff; font-weight: 800; font-size: 13px;
   box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent);
@@ -142,7 +142,7 @@ const roleText = computed(() => (userStore.userInfo?.roles || []).join(' · ') |
 
 .avatar {
   width: 30px; height: 30px; border-radius: 50%;
-  display: grid; place-items: center; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
   background: var(--grad-brand);
   color: #fff; font-size: 12px; font-weight: 700;
   box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent);

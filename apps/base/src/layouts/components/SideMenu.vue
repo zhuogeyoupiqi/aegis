@@ -89,7 +89,7 @@ function go(item: { path: string }): void {
 }
 .brand__logo {
   width: 28px; height: 28px; flex: none; border-radius: 9px;
-  display: grid; place-items: center;
+  display: flex; align-items: center; justify-content: center;
   background: var(--grad-brand);
   color: #fff; font-weight: 800; font-size: 14px;
   box-shadow: 0 3px 10px color-mix(in srgb, var(--primary) 35%, transparent);

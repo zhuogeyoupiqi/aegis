@@ -153,12 +153,43 @@ button { font-family: inherit; }
 }
 
 /* ---------- 通用图标按钮 ---------- */
+/* 居中用 flex 长写法而非 grid place-items：简写在个别环境被丢弃时，
+   grid 默认对齐是 start/start，图标会钉在左上角 */
 .icon-btn {
   width: 32px; height: 32px; flex: none;
-  display: grid; place-items: center;
+  display: flex; align-items: center; justify-content: center;
   background: transparent; border: none; border-radius: var(--radius-ctl);
   color: var(--fg-muted); cursor: pointer;
   transition: all var(--ease);
 }
 .icon-btn:hover { background: rgba(16, 16, 20, 0.06); color: var(--fg); }
 [data-theme='dark'] .icon-btn:hover { background: rgba(255, 255, 255, 0.08); }
+
+/* ---------- antd 组件衔接补丁 ----------
+   antd 主题本体走 ConfigProvider（见 shared/antd-theme.ts），
+   这里只补自研 AppIcon 与 antd 组件插槽衔接处的机制差异。 */
+
+/*
+  a-button 内「图标 + 文字」的间距与居中：
+  1. antd v4 给按钮的是 display: inline-block，间距全靠 `> .anticon + span`
+     的 margin 规则——但 AppIcon 渲染裸 svg（没有 .anticon 包裹层），套不中，
+     图标和文字就是 0 间距；
+  2. 这里按 antd v5 的按钮布局拉成 inline-flex + gap（间距 5px 是定稿的
+     视觉密度，比 antd 默认的 8px 更紧凑），顺带修正 inline-block 下基线
+     对齐导致的图标偏移；
+  3. 排除 loading 态：antd 给 loading 图标自带 margin-inline-end: 8px，
+     叠上 gap 会变成 13px，loading 时回退 antd 原生布局。
+*/
+.ant-btn:not(.ant-btn-loading) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+/*
+  头像下拉的 a-menu-item 同理：antd 菜单的图标间距只认 prop 方式传入的
+  .ant-dropdown-menu-item-icon，插槽里的裸 svg 套不中；把标题容器拉成
+  flex，用同一套 gap 兜住裸 svg + 裸文本的组合。
+*/
+.ant-dropdown-menu-title-content { display: flex; align-items: center; gap: 8px; }

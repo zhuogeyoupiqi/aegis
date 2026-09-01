@@ -140,7 +140,7 @@ function go(item: FlatMenuItem): void {
 .stat { display: flex; align-items: center; gap: 13px; padding: 16px 18px; }
 .stat__icon {
   width: 38px; height: 38px; border-radius: 11px;
-  display: grid; place-items: center;
+  display: flex; align-items: center; justify-content: center;
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 9%, transparent);
 }

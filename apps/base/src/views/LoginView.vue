@@ -177,8 +177,7 @@ function forgot(): void {
 <style scoped>
 .login-page {
   height: 100vh;
-  display: grid;
-  place-items: center;
+  display: flex; align-items: center; justify-content: center;
   padding: 20px;
   position: relative;
   overflow: hidden;
@@ -215,7 +214,7 @@ function forgot(): void {
 .brand-row { display: flex; align-items: center; gap: 11px; }
 .brand-row__logo {
   width: 38px; height: 38px; border-radius: 12px;
-  display: grid; place-items: center;
+  display: flex; align-items: center; justify-content: center;
   background: rgba(255, 255, 255, 0.16);
   border: 1px solid rgba(255, 255, 255, 0.28);
   font-weight: 800; font-size: 18px;
@@ -233,7 +232,8 @@ function forgot(): void {
 .features li { display: flex; gap: 11px; align-items: flex-start; }
 .features__icon {
   width: 30px; height: 30px; flex: none; margin-top: 1px;
-  border-radius: 9px; display: grid; place-items: center;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
   background: rgba(255, 255, 255, 0.14);
   border: 1px solid rgba(255, 255, 255, 0.22);
 }

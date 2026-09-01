@@ -52,8 +52,7 @@ const text = computed(() => (group.value ? t('stub.text', { group: group.value }
 <style scoped>
 .stub {
   min-height: calc(100vh - 158px);
-  display: grid;
-  place-items: center;
+  display: flex; align-items: center; justify-content: center;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -62,7 +61,7 @@ const text = computed(() => (group.value ? t('stub.text', { group: group.value }
 }
 .stub__icon {
   width: 64px; height: 64px; border-radius: 20px;
-  display: grid; place-items: center;
+  display: flex; align-items: center; justify-content: center;
   color: var(--primary);
   background: color-mix(in srgb, var(--primary) 9%, transparent);
 }
