@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SOC 工具域模块：syslog 发包（UDP + SSE）、解析模板、IOC 查询代理（方案文档 M3） -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.aegis</groupId>
+    <artifactId>aegis-server</artifactId>
+    <version>0.1.0</version>
+  </parent>
+
+  <artifactId>aegis-soc</artifactId>
+  <name>aegis-soc</name>
+  <description>SOC 工具域：syslog UDP 发包 + SSE 实时回传 + 目标白名单 + 发送留痕</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.aegis</groupId>
+      <artifactId>aegis-framework</artifactId>
+    </dependency>
+    <!-- 白名单网段配置存在 sys_config（system 域），读取配置属于跨模块协作 -->
+    <dependency>
+      <groupId>com.aegis</groupId>
+      <artifactId>aegis-system</artifactId>
+    </dependency>
+  </dependencies>
+</project>

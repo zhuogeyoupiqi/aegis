@@ -1,0 +1,29 @@
+# Aegis 后端主配置：只放"与环境无关"的部分，数据源等环境差异项在 application-dev.yml
+spring:
+  application:
+    name: aegis-server
+  profiles:
+    # 默认按 dev 起（当前只有开发环境，显式写死避免"忘了传参数连错库"）
+    active: dev
+  sql:
+    init:
+      # 每次启动都执行 schema.sql/data.sql（脚本自身幂等：IF NOT EXISTS + INSERT IGNORE），
+      # 换台机器 clone 下来零手工建表——单人项目这点体验比"严谨的迁移工具"重要
+      mode: always
+      encoding: utf-8
+
+server:
+  # 8090 与前端 vite 代理约定的端口（apps/soc-tools/vite.config.ts 里 /api → localhost:8090）。
+  # 不用 8080：本机 miku/soc-web 的 dev server 长期占用它，撞车
+  port: 8090
+
+mybatis-plus:
+  configuration:
+    # 下划线列 ↔ 驼峰字段自动映射（方案文档 §2.2.2 命名约定）
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      # 逻辑删除取值：0 正常 / 1 已删（与 BaseEntity.@TableLogic 对应）
+      logic-delete-value: 1
+      logic-not-delete-value: 0

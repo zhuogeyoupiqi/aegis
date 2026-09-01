@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  启动聚合模块：整个后端唯一含 main 的模块（方案文档 §2.2.1 分层约定）。
+  类比前端：相当于 apps/base 的角色——只负责把各模块装配成可运行的整体，本身几乎没有业务代码。
+  依赖全部业务模块后，@SpringBootApplication 扫描 com.aegis 下所有包即可完成装配。
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.aegis</groupId>
+    <artifactId>aegis-server</artifactId>
+    <version>0.1.0</version>
+  </parent>
+
+  <artifactId>aegis-admin</artifactId>
+  <name>aegis-admin</name>
+  <description>启动聚合：唯一 main 所在模块，打包部署的产物</description>
+
+  <dependencies>
+    <!-- 业务模块（system/asset/ai），admin 聚合它们 -->
+    <dependency>
+      <groupId>com.aegis</groupId>
+      <artifactId>aegis-system</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.aegis</groupId>
+      <artifactId>aegis-asset</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.aegis</groupId>
+      <artifactId>aegis-soc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.aegis</groupId>
+      <artifactId>aegis-ai</artifactId>
+    </dependency>
+    <!-- MySQL 驱动：只在运行期需要，编译期代码不直接用它 -->
+    <dependency>
+      <groupId>com.mysql</groupId>
+      <artifactId>mysql-connector-j</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- spring-boot-maven-plugin：打出可执行 fat jar（java -jar 一键起服务） -->
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>
