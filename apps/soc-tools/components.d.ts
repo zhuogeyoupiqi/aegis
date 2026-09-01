@@ -26,7 +26,11 @@ declare module 'vue' {
     ATabPane: typeof import('ant-design-vue/es')['TabPane']
     ATabs: typeof import('ant-design-vue/es')['Tabs']
     ATag: typeof import('ant-design-vue/es')['Tag']
+    HistoryDrawer: typeof import('./src/components/HistoryDrawer.vue')['default']
+    LogTerminal: typeof import('./src/components/LogTerminal.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    SendConfigPanel: typeof import('./src/components/SendConfigPanel.vue')['default']
+    TemplatePanel: typeof import('./src/components/TemplatePanel.vue')['default']
   }
 }
