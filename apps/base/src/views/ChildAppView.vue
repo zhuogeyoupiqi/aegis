@@ -35,15 +35,18 @@ const failed = ref(false)
 
 /**
  * 把基座侧的共享状态推给子应用：主题快照 + 界面语言。
- * mounted 事件后（子应用监听就绪）与任一状态变化时各调一次；
- * 子应用侧的 addDataListener 带 autoTrigger，晚注册也能拿到最后一次数据。
+ * mounted 事件后（子应用监听就绪）与任一状态变化时各调一次。
+ *
+ * 注意：micro-app 自定义元素通过 `data` 属性setter下发数据（不是 setData 方法），
+ * 赋值后会进入事件中心，子应用 addDataListener 可收到；写错成 setData 会静默失败。
  */
 function pushData(): void {
-  const target = el.value as unknown as { setData?: (data: Record<string, unknown>) => void } | null
-  target?.setData?.({
+  const target = el.value as unknown as { data?: Record<string, unknown> } | null
+  if (!target) return
+  target.data = {
     [CHILD_DATA_KEYS.THEME]: appStore.themeSnapshot,
     [CHILD_DATA_KEYS.LANG]: appStore.prefs.lang,
-  })
+  }
 }
 
 function onChildMounted(): void {
