@@ -26,6 +26,12 @@ export const THEME_PRESETS: ThemePreset[] = [
 export type ThemeMode = 'light' | 'dark' | 'auto'
 export type NavLayout = 'side' | 'top' | 'mixed'
 
+/**
+ * 数据源模式：mock = 全平台走本地模拟（不启动后端也能登录操作），real = 走 8090 真实接口。
+ * 定义在本 store 而不是 contract：契约包只描述两端共享的结构，"基座偏好"是基座自己的状态。
+ */
+export type ApiMode = 'mock' | 'real'
+
 /** 全局外观偏好（持久化到 localStorage） */
 export interface AppPrefs {
   mode: ThemeMode
@@ -36,6 +42,11 @@ export interface AppPrefs {
   gray: boolean
   /** 界面语言：持久化，并随主题一起下发子应用 */
   lang: Lang
+  /**
+   * 数据源模式：平台级全局唯一控制点（设置抽屉里切），随数据通道下发子应用。
+   * 默认 mock：保证"后端没起也能完整操作平台"的核心使用场景
+   */
+  apiMode: ApiMode
 }
 
 const PREFS_KEY = 'aegis:prefs'
@@ -47,6 +58,7 @@ const DEFAULT_PREFS: AppPrefs = {
   colorWeak: false,
   gray: false,
   lang: 'zh-CN',
+  apiMode: 'mock',
 }
 
 /** 从 localStorage 恢复偏好；存档损坏时静默回默认值（外观类偏好不值得抛错误） */

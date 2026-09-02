@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { App } from 'ant-design-vue'
 import type { FormInstance, Rule } from 'ant-design-vue/es/form'
 import { bindFeedback } from '@aegis/shared'
-import { useAppStore } from '@/stores/app'
+import { useAppStore, type ApiMode } from '@/stores/app'
 import { useUserStore } from '@/stores/user'
 import AppIcon from '@/components/AppIcon.vue'
 
@@ -18,7 +18,18 @@ const { t } = useI18n()
 bindFeedback(App.useApp().message)
 
 const formRef = ref<FormInstance>()
-const form = reactive({ account: 'admin', password: '123456', remember: true })
+// 默认留空：真实模式不预填演示账号（避免暴露账号），模拟模式的提示单独展示
+const form = reactive({ account: '', password: '', remember: true })
+
+/**
+ * 数据源选项：登录页与设置抽屉是同一真源（prefs.apiMode）的两个入口——
+ * 登录前在这里选好模式直接以该模式登录，避免"想用真实接口得先 mock 登录绕一圈"。
+ * options 数组依赖 t()，须在组件内生成（与 SettingsDrawer 各持一份，词条共用）。
+ */
+const API_MODES = computed(() => [
+  { value: 'mock' as ApiMode, label: t('settings.dataSourceMock') },
+  { value: 'real' as ApiMode, label: t('settings.dataSourceReal') },
+])
 
 // 表单校验规则：只做非空校验，账号格式等规则等接真实接口时再补。
 // 用 computed 生成：错误文案跟语言走，切语言后未触发的校验提示也是新语言
@@ -160,7 +171,22 @@ function forgot(): void {
           </a-button>
         </a-form>
 
-        <p class="demo-tip">
+        <!-- 数据源入口：登录前选好模式（与设置抽屉同一真源），登录会话天然与模式匹配 -->
+        <div class="mode-row">
+          <span class="mode-row__label">{{ t('settings.dataSource') }}</span>
+          <a-segmented
+            v-model:value="appStore.prefs.apiMode"
+            :options="API_MODES"
+            size="small"
+            class="mode-row__seg"
+          />
+        </div>
+        <p v-if="appStore.prefs.apiMode === 'real'" class="mode-hint">
+          {{ t('login.apiModeRealHint') }}
+        </p>
+
+        <!-- 演示提示只在模拟数据源下出现：真实模式不暴露账号信息 -->
+        <p v-if="appStore.prefs.apiMode === 'mock'" class="demo-tip">
           {{ t('login.demoTip') }} <span class="kbd">admin</span> · 123456
         </p>
 
@@ -298,6 +324,18 @@ function forgot(): void {
 .demo-tip {
   margin-top: 18px;
   text-align: center; font-size: 11.5px; color: var(--fg-muted);
+}
+
+/* 数据源切换行：低调常驻，登录前选定会话模式 */
+.mode-row {
+  margin-top: 18px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12.5px; color: var(--fg-sub);
+}
+
+.mode-hint {
+  margin-top: 8px;
+  font-size: 11px; color: var(--fg-muted);
 }
 
 .sec-notice {

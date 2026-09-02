@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { UserSnapshot } from '@aegis/contract'
-import { loginApi, type LoginResult } from '@/api/auth'
+import { loginApi, logoutApi, type LoginResult } from '@/api/auth'
 
 // 会话持久化键：刷新页面后免二次登录（mock 阶段足够；接真实后端时换 cookie/token 刷新机制）
 const TOKEN_KEY = 'aegis:token'
@@ -41,8 +41,13 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
-  /** 退出登录：清内存态与持久化会话（页面跳转由调用方负责） */
-  function logout(): void {
+  /**
+   * 退出登录：先通知后端销毁会话，再清内存态与持久化会话（页面跳转由调用方负责）。
+   * 后端通知 fire-and-forget（catch 吞掉）：token 已失效/后端没起时登出流程照样走完，
+   * 本地清理才是"登出"的本体，服务端销毁失败不值得把用户拦在界面上。
+   */
+  async function logout(): Promise<void> {
+    await logoutApi().catch(() => {})
     token.value = ''
     userInfo.value = null
     localStorage.removeItem(TOKEN_KEY)

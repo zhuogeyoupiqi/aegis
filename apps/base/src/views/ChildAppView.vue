@@ -2,14 +2,16 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { APP_CODES, CHILD_DATA_KEYS, type AppCode } from '@aegis/contract'
+import { APP_CODES, CHILD_DATA_KEYS, type AppCode, type AuthSnapshot } from '@aegis/contract'
 import { useAppStore } from '@/stores/app'
 import { useMenuStore } from '@/stores/menu'
+import { useUserStore } from '@/stores/user'
 import AppIcon from '@/components/AppIcon.vue'
 
 const route = useRoute()
 const appStore = useAppStore()
 const menuStore = useMenuStore()
+const userStore = useUserStore()
 const { t } = useI18n()
 
 /** 当前路由要装载的子应用（由路由 meta 指定，用契约类型收窄 registry 索引） */
@@ -34,8 +36,10 @@ const loading = ref(true)
 const failed = ref(false)
 
 /**
- * 把基座侧的共享状态推给子应用：主题快照 + 界面语言。
+ * 把基座侧的共享状态推给子应用：主题快照 + 界面语言 + 登录态 + 数据源模式。
  * mounted 事件后（子应用监听就绪）与任一状态变化时各调一次。
+ *
+ * 登录态显式下发 null（基座未登录时）：比漏发旧值诚实，子应用据此走未登录分支。
  *
  * 注意：micro-app 自定义元素通过 `data` 属性setter下发数据（不是 setData 方法），
  * 赋值后会进入事件中心，子应用 addDataListener 可收到；写错成 setData 会静默失败。
@@ -43,9 +47,14 @@ const failed = ref(false)
 function pushData(): void {
   const target = el.value as unknown as { data?: Record<string, unknown> } | null
   if (!target) return
+  const auth: AuthSnapshot | null = userStore.token
+    ? { token: userStore.token, user: userStore.userInfo! }
+    : null
   target.data = {
     [CHILD_DATA_KEYS.THEME]: appStore.themeSnapshot,
     [CHILD_DATA_KEYS.LANG]: appStore.prefs.lang,
+    [CHILD_DATA_KEYS.USER]: auth,
+    [CHILD_DATA_KEYS.API_MODE]: appStore.prefs.apiMode,
   }
 }
 
@@ -70,6 +79,10 @@ function retry(): void {
 watch(() => appStore.themeSnapshot, pushData, { deep: true })
 // 语言也随数据通道下发：基座切语言，已装载的子应用无需刷新即可跟随
 watch(() => appStore.prefs.lang, pushData)
+// 数据源模式同机制：基座设置抽屉切换，子应用下一次请求立即跟随
+watch(() => appStore.prefs.apiMode, pushData)
+// 登录/登出也重推：登出后子应用的 lastAuth 变 null，真实接口请求不再带旧 token
+watch([() => userStore.token, () => userStore.userInfo], pushData, { deep: true })
 </script>
 
 <template>

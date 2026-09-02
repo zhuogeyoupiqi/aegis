@@ -33,5 +33,13 @@ export default defineConfig({
   },
   server: {
     port: 8000,
+    // /api 代理到后端 8090（与 soc-tools 的约定一致）。
+    // 不用 8080：本机 miku/soc-web 的 dev server 长期占用它
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8090',
+        changeOrigin: true,
+      },
+    },
   },
 })

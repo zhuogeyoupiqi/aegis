@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAppStore, THEME_PRESETS, type NavLayout, type ThemeMode } from '@/stores/app'
+import { useAppStore, THEME_PRESETS, type ApiMode, type NavLayout, type ThemeMode } from '@/stores/app'
+import { useUserStore } from '@/stores/user'
 import { LANG_OPTIONS, type Lang } from '@/locales'
 import AppIcon from '@/components/AppIcon.vue'
 
+const router = useRouter()
 const appStore = useAppStore()
+const userStore = useUserStore()
 const { t } = useI18n()
 
 /** 选项数组用 computed 生成：label 走词条，切语言时选项文案跟着变 */
@@ -13,6 +17,12 @@ const MODES = computed(() => [
   { value: 'light' as ThemeMode, label: t('settings.light') },
   { value: 'dark' as ThemeMode, label: t('settings.dark') },
   { value: 'auto' as ThemeMode, label: t('settings.auto') },
+])
+
+/** 数据源选项：全平台唯一的 mock/real 控制点，切换后经数据通道下发子应用 */
+const API_MODES = computed(() => [
+  { value: 'mock' as ApiMode, label: t('settings.dataSourceMock') },
+  { value: 'real' as ApiMode, label: t('settings.dataSourceReal') },
 ])
 
 const LAYOUTS = computed(() => [
@@ -23,6 +33,21 @@ const LAYOUTS = computed(() => [
 
 function onLangChange(v: string | number): void {
   appStore.prefs.lang = v as Lang
+}
+
+/**
+ * 切换数据源：已登录时当前会话属于旧模式（mock 会话是假 token、real 会话
+ * 配 mock 数据都是脏状态），直接作废回登录页重新登录——换来一条强不变量：
+ * "会话永远属于当前数据源"。logout 顺手销毁后端会话，失败不阻塞本地登出
+ * （旧 token 若已无效，A0401 也会被 http.ts 处理成跳登录，殊途同归）。
+ */
+function onApiModeChange(v: string | number): void {
+  appStore.prefs.apiMode = v as ApiMode
+  if (userStore.token) {
+    userStore.logout()
+    appStore.pushToast(t('settings.apiModeResetToast'), 'info')
+    router.push('/login')
+  }
 }
 
 /** 主题色名称展示：预设 label 是数据文案，暂不进词条（后续做多语言预设名再收编） */
@@ -99,6 +124,22 @@ function resetAll(): void {
           block
           @change="onLangChange"
         />
+      </section>
+
+      <!--
+        数据源：与登录页同一真源（prefs.apiMode）的两个入口之一。
+        真源必须唯一且在基座——子应用页面上不允许出现开关（历史教训：
+        发包器页头曾放过一个模式按钮，已移除）。已登录时切换会重置会话回登录页。
+      -->
+      <section class="sec">
+        <h3>{{ t('settings.dataSource') }}</h3>
+        <a-segmented
+          :value="appStore.prefs.apiMode"
+          :options="API_MODES"
+          block
+          @change="onApiModeChange"
+        />
+        <p class="sec__hint">{{ t('settings.dataSourceHint') }}</p>
       </section>
 
       <!-- 功能开关 -->
