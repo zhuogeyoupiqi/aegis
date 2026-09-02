@@ -1,7 +1,7 @@
 # Aegis Server —— 后端服务
 
 Aegis 个人能力平台的后端：**Maven 多模块的模块化单体**（方案文档 §2.2.1）。
-当前已实现 syslog 发包模块（UDP 实发 + SSE 实时回传 + 白名单 + 留痕），登录（SA-Token）、资产库、AI 网关后续阶段接入。
+当前已实现 syslog 发包模块（UDP 实发 + SSE 实时回传 + 白名单 + 留痕）、登录（SA-Token）与资产库（asset-repo），AI 网关后续阶段接入。
 
 ## 模块结构
 
@@ -10,7 +10,7 @@ aegis-server
 ├── aegis-common      公共件（零依赖）：Result 统一返回 / ErrorCode / BizException / CIDR 工具
 ├── aegis-framework   技术基建：全局异常 / 审计切面 / MyBatis-Plus 配置 / 操作人上下文
 ├── aegis-system      系统域：sys_config 配置读写（白名单就在这）
-├── aegis-asset       资产域（预留，暂无代码）
+├── aegis-asset       资产域：资产仓库（条目 CRUD + 关键字/标签检索 + 复制计数）
 ├── aegis-soc         SOC 工具域：syslog 发包（任务/事件中心/线程池/Controller）
 ├── aegis-ai          AI 域（预留，暂无代码）
 └── aegis-admin       启动聚合：唯一 main，打包部署产物（其余模块不允许有启动类）
@@ -58,7 +58,7 @@ mvn -pl aegis-admin -am package -DskipTests
 java -jar aegis-admin/target/aegis-admin-0.1.0.jar
 ```
 
-启动时自动完成：建 9 张表（幂等 `CREATE TABLE IF NOT EXISTS`）→ 灌种子数据（白名单配置、4 套内置模板，`INSERT IGNORE`）→ 清理上次异常中断的 RUNNING 任务。
+启动时自动完成：建 10 张表（幂等 `CREATE TABLE IF NOT EXISTS`）→ 灌种子数据（白名单配置、4 套内置模板、4 条资产种子，`INSERT IGNORE`）→ 清理上次异常中断的 RUNNING 任务。
 
 看到这行就是起来了：
 
@@ -149,6 +149,18 @@ curl -N http://localhost:8090/api/syslog/tasks/{taskId}/events
 nc -kul 1514    # 另开终端监听 UDP 1514，页面上把目标填 127.0.0.1:1514
 ```
 
+### 资产仓库（asset-repo）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/asset/items?current=1&size=20&kw=&type=&tag=` | 分页检索：`kw` 模糊命中名称/说明/正文，`type` 精确（snippet/component/function/doc/link），`tag` 精确（`FIND_IN_SET`，java 不误中 javascript）。按复制次数降序 |
+| POST | `/api/asset/items` | 新增资产；`tags` 逗号串（服务端小写去重，>8 个拒绝 `A0001`） |
+| PUT | `/api/asset/items/{id}` | 更新资产（不存在返回 `B0404`） |
+| DELETE | `/api/asset/items/{id}` | 删除资产（逻辑删除，底账保留） |
+| POST | `/api/asset/items/{id}/copy` | 复制计数 +1（`setSql` 原子自增；**不打审计**——读语义高频打点，避免刷爆 op_log） |
+
+五类资产共一张 `asset_item` 表（差异只在 type 与展示形态）；正文 `content` TEXT（64KB，DTO `@Size(60000)` 前置拦截）。
+
 ## 配置说明
 
 - `application.yml`：与环境无关的部分（端口 8090、SQL 初始化、MyBatis-Plus 映射规则）
@@ -160,7 +172,7 @@ nc -kul 1514    # 另开终端监听 UDP 1514，页面上把目标填 127.0.0.1:
 mysql -uaegis -paegis123 aegis -e "UPDATE sys_config SET cfg_value='[\"10.0.0.0/8\",\"172.16.0.0/12\",\"192.168.0.0/16\",\"127.0.0.0/8\",\"100.64.0.0/10\"]' WHERE cfg_key='syslog.whitelist';"
 ```
 
-## 数据库表（9 张）
+## 数据库表（10 张）
 
 | 表 | 用途 |
 |---|---|
@@ -171,6 +183,7 @@ mysql -uaegis -paegis123 aegis -e "UPDATE sys_config SET cfg_value='[\"10.0.0.0/
 | soc_send_task | 发送任务留痕：谁、何时、对哪、发了多少、结果如何 |
 | soc_send_template | 报文模板（CEF/LEEF/JSON/KV 内置种子） |
 | soc_send_preset | 发送配置预设（"保存任务"的落点；task 是日记系统写，preset 是书签用户存） |
+| asset_item | 资产条目（五类共表：名字/类型/语言/标签/正文/复制计数） |
 
 所有表带通用六字段：`id（雪花）/ create_time / update_time / create_by / deleted（逻辑删）/ version（乐观锁）`，由 `BaseEntity` + MyBatis-Plus 自动维护。
 

@@ -1,7 +1,7 @@
 # Aegis 个人能力平台 · 完整产品与技术方案
 
-> 版本：v1.3（2026-09-01）
-> 变更：v1.4 SA-Token 真实登录落地（登录/注销/拦截/BCrypt/登录日志）+ mock/real 收敛为全局数据源开关（登录页与设置抽屉双入口、单真源、切换重置会话）+ 样式层迁移 less；v1.3 新增「当前开发进度」快照（见下方），syslog 发包器后端联通（UDP+SSE+白名单+留痕）、前端 mock/real 双驱动切换；v1.2 §4 UI 规范整体切换为「浅色紫渐变 SaaS」基准（多主题色体系/明暗双主题/恒定深色终端/登录页规范）；v1.1 新增 2.4 前端工程化与构建策略（Turborepo 权衡）、2.5 部署方案设计；monorepo 结构新增 `@aegis/contract` 契约包；迭代规划纳入部署任务
+> 版本：v1.5（2026-09-02）
+> 变更：v1.5 asset-repo 资产仓库 MVP 落地（五类资产共表 asset_item、Shiki 静态高亮双栏检索台、mock/real 双轨、复制计数驱动排序、复制打点不打审计、基座 ChildAppView 前缀泛化 childPrefix）；v1.4 SA-Token 真实登录落地（登录/注销/拦截/BCrypt/登录日志）+ mock/real 收敛为全局数据源开关（登录页与设置抽屉双入口、单真源、切换重置会话）+ 样式层迁移 less；v1.3 新增「当前开发进度」快照（见下方），syslog 发包器后端联通（UDP+SSE+白名单+留痕）、前端 mock/real 双驱动切换；v1.2 §4 UI 规范整体切换为「浅色紫渐变 SaaS」基准（多主题色体系/明暗双主题/恒定深色终端/登录页规范）；v1.1 新增 2.4 前端工程化与构建策略（Turborepo 权衡）、2.5 部署方案设计；monorepo 结构新增 `@aegis/contract` 契约包；迭代规划纳入部署任务
 >
 > 技术栈基线：micro-app 微前端 + Vue3 + Vite（前端）｜Java + Spring Boot（后端）｜MySQL
 >
@@ -9,9 +9,9 @@
 
 ---
 
-## 📍 当前开发进度（2026-09-01 更新）
+## 📍 当前开发进度（2026-09-02 更新）
 
-**当前阶段：MVP「发包器可用」+「真实登录」已达成（2026-09-02 SA-Token 端到端验证通过），其余 MVP 项暂缓（过两天再说）。**
+**当前阶段：MVP「发包器可用」+「真实登录」+「资产仓库」已达成（2026-09-02 asset-repo 前后端端到端验证通过），其余 MVP 项暂缓（过两天再说）。**
 
 | 模块 | 状态 | 说明 |
 |---|---|---|
@@ -22,10 +22,10 @@
 | 后端骨架（aegis-server） | ✅ 完成 | Maven 多模块模块化单体（common/framework/system/asset/soc/ai/admin），`mvn package` 通过 |
 | 后端 syslog 模块 | ✅ 代码完成 | POST 建任务 → 线程池 UDP 直发 → SSE 实时回传（line/stats/done）→ soc_send_task 留痕；CIDR 白名单（sys_config 可配）；@AuditLog 审计切面 |
 | 发包器「保存任务 + 发送历史」 | ✅ 完成 | 页头「保存任务」把当前表单存为配置预设（soc_send_preset）、「发送历史」抽屉两个页签（历史任务可复现/预设可载入删除）；mock 模式同构落 localStorage |
-| 9 张核心表 | ✅ 完成 | schema.sql 幂等建表 + data.sql 种子（白名单配置/4 套内置模板），启动自动初始化（已验证） |
+| 10 张核心表 | ✅ 完成 | schema.sql 幂等建表 + data.sql 种子（白名单配置/4 套内置模板/4 条资产种子），启动自动初始化（已验证） |
 | 发包器端到端联调 | ✅ 完成 | 已验证：API 建任务 → UDP 实发（nc 实收逐条报文）→ SSE 事件流（含断线补播）→ 留痕落库（soc_send_task + sys_op_log）→ 白名单拦截外网目标；前端经 vite 代理走通全链路 |
 | SA-Token 真实登录 + 全局数据源 | ✅ 完成 | 后端：SA-Token 1.46 拦截 `/api/**`（白名单仅 login 与 SSE）、BCrypt 密码（admin/123456，幂等迁移老库占位串）、sys_login_log 成败都留痕、审计 operator 从会话取登录名（logout 场景回退发起时快照）。前端：mock/real 全局开关（默认 mock，不启后端可完整操作平台），**登录页与设置抽屉双入口、单真源 prefs.apiMode**（登录前可选模式，避免"想用真实接口得先 mock 登录绕一圈"；切换即重置会话回登录页，保证会话永远属于当前数据源），经 micro-app 数据通道下发子应用（发包器页头按钮已移除，改只读徽标）；登录态 token 同通道下发，子应用 A0401 只 toast 不跳转（路由权在基座）。curl 全链路已验证（登录/错密码同文案 B0101/防枚举、裸 token 拦截、logout 后失效、SSE 豁免、operator=admin 落库） |
-| asset-repo 资产库 | ⏸ 暂缓 | 前端骨架就绪，后端 asset 表未建 |
+| asset-repo 资产仓库 | ✅ 完成 | 后端：asset_item 单表五类共表（snippet/component/function/doc/link，type 判别），检索 = LIKE 三列模糊 + FIND_IN_SET 标签精确，排序 copy_count 降序（使用频率），复制计数端点 setSql 原子自增且**不打审计**（读语义防刷爆 op_log），标签服务端小写去重（>8 拒绝）。前端：apps/asset-repo 子应用（8001），双栏检索台（左列表右详情常驻）、Shiki 静态高亮（github-light/dark 随主题通道切换）、编辑 textarea（Monaco 后续）、复制走剪贴板 API + execCommand 兜底、标签点选即筛选；mock 走 localStorage（种子与 data.sql 同构，**保留不删**）、real 走 /api/asset/items。curl 全链路已验证（过滤/CRUD/计数自增/A0401/审计 operator=admin） |
 | Docker 部署（compose + deploy.sh） | ⏸ 暂缓 | 开发环境即可用：`java -jar` 起后端 8090，vite 代理 `/api` |
 
 **架构落点补充（实现与 §2/§5.2 的差异，均为实现期决策）**：
@@ -33,6 +33,7 @@
 2. 模板渲染完全留在前端（§2.2.3 边界的严格执行）：前端把整批渲染好的报文列表 `payloads` 一次性上送，后端逐条进 UDP 包——线上内容与终端展示必然一致，条数即列表长度，不再单独传 `count`；
 3. SSE 订阅为 GET，前端直接用原生 `EventSource`（§5.2 提到"不要用 EventSource"针对的是 POST 建 SSE 的设计，本实现无此限制）；
 4. 登录实现与 §2.3.2 设想的差异：token 走 `Authorization: Bearer` 请求头（基座/子应用 iframe 跨源，cookie 通道天然不可用，§2.3.2 的双 token 无感刷新暂不落地——当前单 token 7 天有效，内存会话重启失效重新登录一次即可，接 Redis 时再评估）；未登录统一走 **HTTP 200 + code A0401**（不单独用 HTTP 401，保持 Result 风格单一）；SSE 端点豁免鉴权（EventSource 无法自定义请求头，taskId 雪花不可枚举）；mock/real 数据源开关为**登录页 + 设置抽屉双入口、单真源 `prefs.apiMode`**，切换即重置会话回登录页。
+5. 资产库与 §5.3 全量愿景的差距（均为 MVP 口径 §7 的刻意裁剪）：五类资产**共一张 `asset_item` 表**（§5.3 的 asset_version 版本表、@vue/repl 在线预览、Meilisearch 全文检索、Monaco 编辑器均属后续阶段）；基座 `ChildAppView` 的子应用路径映射从 `/^\/soc/` 硬编码泛化为路由 meta `childPrefix`（/soc、/asset 各自声明）——此后新子应用接入只改路由表 + 注册表两处，装载视图零改动。
 
 ---
 
