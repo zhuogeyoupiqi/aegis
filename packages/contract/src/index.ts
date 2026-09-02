@@ -33,9 +33,20 @@ export const CHILD_DATA_KEYS = {
   THEME: 'theme',
   /** 语言（'zh-CN' | 'en-US'）：子应用跟随基座切换 i18n locale 与 antd locale */
   LANG: 'lang',
-  /** 用户态（只读快照）：子应用展示用户名/权限用，禁止自行管理 token */
+  /**
+   * 用户态（登录快照）：token 与用户信息由基座统一下发，子应用只读——
+   * iframe 跨源下子应用既拿不到 cookie 也无法自持会话，基座是唯一登录态持有者
+   */
   USER: 'user',
+  /**
+   * 数据源模式（mock/real）：与主题/语言同机制的全局配置，基座设置抽屉是唯一控制点，
+   * 子应用页面上不允许再出现模式开关（避免两处状态打架）
+   */
+  API_MODE: 'api-mode',
 } as const
+
+/** 数据源模式：mock = 本地模拟（无后端可用），real = 真实后端接口 */
+export type ApiMode = 'mock' | 'real'
 
 /** 主题快照：基座下发、子应用应用（useBaseThemeBridge 消费） */
 export interface ThemeSnapshot {
@@ -52,6 +63,15 @@ export interface UserSnapshot {
   account: string
   nickname: string
   roles: string[]
+}
+
+/**
+ * 登录态快照（基座 → 子应用）：token 供子应用调真实接口时拼 Authorization 头，
+ * user 供界面展示。未登录时基座显式下发 null（比漏发旧值诚实，子应用据此走未登录分支）。
+ */
+export interface AuthSnapshot {
+  token: string
+  user: UserSnapshot
 }
 
 /** 菜单节点（后端 sys_menu 下发结构的子集，MVP 由前端 mock） */

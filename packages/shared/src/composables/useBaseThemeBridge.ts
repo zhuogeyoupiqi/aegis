@@ -1,5 +1,5 @@
 import { onMounted, ref } from 'vue'
-import { CHILD_DATA_KEYS, type ThemeSnapshot } from '@aegis/contract'
+import { CHILD_DATA_KEYS, type ApiMode, type AuthSnapshot, type ThemeSnapshot } from '@aegis/contract'
 import { lastThemeSnapshot } from '../antd-theme'
 
 /**
@@ -8,6 +8,19 @@ import { lastThemeSnapshot } from '../antd-theme'
  * App.vue watch 它来切换语言。
  */
 export const lastLang = ref<'zh-CN' | 'en-US'>('zh-CN')
+
+/**
+ * 子应用最近收到的登录态（null = 基座侧未登录）。
+ * 子应用调真实接口时从这里取 token 拼 Authorization 头——
+ * iframe 跨源拿不到 cookie，数据通道是子应用获得会话的唯一途径。
+ */
+export const lastAuth = ref<AuthSnapshot | null>(null)
+
+/**
+ * 子应用最近收到的数据源模式（undefined = 基座还没推过，独立运行时恒为此值）。
+ * 子应用的 api 层按它决定走 mock 还是真实接口；基座设置抽屉是唯一控制点。
+ */
+export const lastApiMode = ref<ApiMode | undefined>(undefined)
 
 /**
  * 把主题快照应用到当前应用根节点。
@@ -24,13 +37,19 @@ export function applyThemeSnapshot(t: ThemeSnapshot): void {
   lastThemeSnapshot.value = t
 }
 
-/** 应用基座下发的一包数据（主题 + 语言） */
+/** 应用基座下发的一包数据（主题 + 语言 + 登录态 + 数据源模式） */
 function applyBaseData(data: Record<string, unknown>): void {
   const t = data?.[CHILD_DATA_KEYS.THEME]
   if (t) applyThemeSnapshot(t as ThemeSnapshot)
   const lang = data?.[CHILD_DATA_KEYS.LANG]
   // 只认契约内的语言值，脏数据直接忽略
   if (lang === 'zh-CN' || lang === 'en-US') lastLang.value = lang
+  // 登录态：显式 null 也是合法值（基座未登录），与"键不存在"区分开
+  if (CHILD_DATA_KEYS.USER in data) {
+    lastAuth.value = (data[CHILD_DATA_KEYS.USER] as AuthSnapshot | null) ?? null
+  }
+  const mode = data?.[CHILD_DATA_KEYS.API_MODE]
+  if (mode === 'mock' || mode === 'real') lastApiMode.value = mode
 }
 
 /**
