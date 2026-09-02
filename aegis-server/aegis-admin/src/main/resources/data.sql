@@ -38,3 +38,25 @@ WHERE id = 1 AND password = '{bcrypt}pending-sa-token-integration';
 
 INSERT IGNORE INTO sys_role (id, role_code, role_name, remark, create_by)
 VALUES (1, 'admin', '管理员', '拥有全部权限', 'seed');
+
+-- 资产仓库种子：每类一条示范（snippet/component/doc/link），让真实接口模式首启不空库，
+-- 也给"搜索/标签筛选/复制计数排序"提供可直接验证的数据。copy_count 给了差异化初值，
+-- 排序效果（复制多的在前）开箱可见。asset_item 无业务唯一键，靠固定主键防重插。
+-- 正文里统一用双引号写代码字符串：避免 SQL 单引号转义把种子内容弄得没法读
+INSERT IGNORE INTO asset_item (id, name, type, lang, description, content, tags, copy_count, create_by)
+VALUES (101, 'useDebounceFn', 'snippet', 'ts',
+        'Vue3 防抖 composable：输入框搜索等高频触发的标准件',
+        'import { ref, onUnmounted } from "vue"\n\n/** 防抖执行：停顿 wait 毫秒后才真正触发 */\nexport function useDebounceFn<F extends (...args: any[]) => void>(fn: F, wait = 300) {\n  const timer = ref<ReturnType<typeof setTimeout> | null>(null)\n\n  function run(...args: Parameters<F>) {\n    if (timer.value) clearTimeout(timer.value)\n    timer.value = setTimeout(() => fn(...args), wait)\n  }\n\n  // 组件卸载清掉挂起的定时器，避免回调打到已销毁的组件\n  onUnmounted(() => {\n    if (timer.value) clearTimeout(timer.value)\n  })\n\n  return { run }\n}',
+        'vue,composable', 12, 'seed'),
+       (102, 'Result 统一返回包装', 'component', 'java',
+        'Spring Boot 接口统一 Result<T>：code=0 成功，A/B/C 分段错误码',
+        'import java.io.Serializable;\n\n/**\n * 统一接口返回包装。前后端契约：code=0 成功，非 0 分段\n * （A 调用方问题 / B 业务规则 / C 服务端内部）。\n */\npublic class Result<T> implements Serializable {\n\n    private String code;\n    private String message;\n    private T data;\n\n    public static <T> Result<T> ok(T data) {\n        Result<T> r = new Result<>();\n        r.code = "0";\n        r.data = data;\n        return r;\n    }\n\n    public static <T> Result<T> fail(String code, String message) {\n        Result<T> r = new Result<>();\n        r.code = code;\n        r.message = message;\n        return r;\n    }\n}',
+        'java,spring', 3, 'seed'),
+       (103, 'grep 应急速查', 'doc', 'md',
+        'SOC 排查时最常用的 grep 组合，按使用频率排列',
+        '# grep 应急速查\n\n## 最常用\n- grep -rn "pattern" /var/log          # 递归 + 行号，排查日志第一反应\n- grep -i "error" app.log              # 忽略大小写\n- grep -c "Failed" secure.log          # 只数条数\n- grep -A 3 -B 1 "panic" app.log       # 命中行后 3 行前 1 行（上下文）\n\n## 进阶\n- grep -E "10\\\\.0\\\\.[0-9]+\\\\.[0-9]+" access.log      # 扩展正则提内网 IP\n- grep -v "health-check" access.log                  # 反选，滤掉探活噪声\n- zgrep "sqlmap" *.gz                                # 直接搜压缩日志\n- grep -o "src=[0-9.]*" alert.log | sort | uniq -c | sort -rn   # 提字段并计数\n\n## 排查思路\n先 -c 确认量级 → 再 -A/-B 看上下文 → 最后 -o + uniq -c 做聚合。',
+        'bash,soc', 7, 'seed'),
+       (104, 'MITRE ATT&CK 官网', 'link', NULL,
+        '攻击技战术知识库，写报告/研判时查技战术编号的第一入口',
+        'https://attack.mitre.org/',
+        'threatintel', 5, 'seed');

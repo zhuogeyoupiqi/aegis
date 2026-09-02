@@ -1,6 +1,6 @@
 -- Aegis MVP 建表脚本（方案文档 §2.2.2）
 -- 幂等：全部 IF NOT EXISTS，配合 spring.sql.init.mode=always 实现零手工初始化。
--- asset / ai 域的表属于后续阶段（资产库、AI 网关），本阶段不建。
+-- ai 域的表属于后续阶段（AI 网关），本阶段不建；资产域表见文末"资产域"一节。
 -- 通用六字段（BaseEntity 对应列）：id/create_time/update_time/create_by/deleted/version，
 -- 雪花 ID 由应用生成（ASSIGN_ID），所以主键不用 AUTO_INCREMENT。
 
@@ -182,3 +182,28 @@ CREATE TABLE IF NOT EXISTS soc_send_preset (
     version          INT          NOT NULL DEFAULT 0,
     PRIMARY KEY (id)
 ) ENGINE = InnoDB COMMENT = 'syslog 发送配置预设';
+
+-- ============ 资产域 ============
+
+-- 资产条目表（方案文档 §M2 资产库）：片段/组件/函数/文档/链接 五类共一张表，
+-- type 字段区分——五类共享同一形状（名字+正文+标签），拆表只会带来五份重复 CRUD。
+-- asset_version 版本表（历史版本回溯）属于后续阶段，先不建。
+-- tags 存逗号分隔小写串：个人库量级下 FIND_IN_SET 足够，量级上来再演进 Meilisearch
+CREATE TABLE IF NOT EXISTS asset_item (
+    id           BIGINT       NOT NULL,
+    name         VARCHAR(128) NOT NULL COMMENT '资产名',
+    type         VARCHAR(32)  NOT NULL COMMENT '类型：snippet/component/function/doc/link',
+    lang         VARCHAR(32)  NULL COMMENT '代码语言（code 类用；doc 固定 md；link 为空）',
+    description  VARCHAR(512) NULL COMMENT '一句话说明',
+    content      TEXT         NOT NULL COMMENT '正文（代码/文档/URL）',
+    tags         VARCHAR(255) NULL COMMENT '标签，逗号分隔小写',
+    copy_count   INT          NOT NULL DEFAULT 0 COMMENT '复制次数（使用频率排序权重）',
+    create_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    update_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    create_by    VARCHAR(64)  NULL,
+    deleted      TINYINT      NOT NULL DEFAULT 0,
+    version      INT          NOT NULL DEFAULT 0,
+    PRIMARY KEY (id),
+    KEY idx_type (type),
+    KEY idx_copy_count (copy_count)
+) ENGINE = InnoDB COMMENT = '个人开发资产条目';
