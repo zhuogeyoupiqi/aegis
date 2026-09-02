@@ -22,12 +22,15 @@ const registration = computed(() => menuStore.registry[appCode.value])
  * 子应用地址：
  * - dev 直连子应用 dev 端口（跨源也无所谓，iframe 沙箱天生支持）
  * - build 后走基座同域静态路径
- * - 基座路径 /soc/xxx 映射子应用 hash 路由 #/xxx，路由联动不靠通信
+ * - 基座路径 /soc/xxx、/asset/xxx 映射子应用 hash 路由 #/xxx，路由联动不靠通信。
+ *   前缀从路由 meta.childPrefix 取（各前缀路由自己声明），不写死 /soc——
+ *   新子应用接入只改路由表，这里零改动
  */
 const appUrl = computed(() => {
   if (!registration.value) return ''
   const entry = import.meta.env.DEV ? registration.value.devEntry : registration.value.prodEntry
-  const childPath = route.path.replace(/^\/soc/, '') || '/'
+  const prefix = (route.meta.childPrefix as string | undefined) ?? '/soc'
+  const childPath = route.path.replace(new RegExp(`^${prefix}`), '') || '/'
   return `${entry}#${childPath}`
 })
 

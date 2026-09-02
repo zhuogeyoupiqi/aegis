@@ -147,7 +147,7 @@ export default {
     unregistered: '子应用「{code}」未在注册表中登记，请检查菜单数据。',
     loading: '正在装载「{name}」…',
     loadFailed: '子应用装载失败',
-    checkServer: '请确认 soc-tools 已启动（pnpm dev:soc，端口 8002）',
+    checkServer: '请确认对应子应用 dev server 已启动（soc-tools 8002 / asset-repo 8001）',
     retry: '重试',
   },
   route: {

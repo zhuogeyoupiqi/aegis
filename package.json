@@ -4,9 +4,10 @@
   "private": true,
   "description": "Aegis 个人能力平台：micro-app 微前端底座 + SOC 工具集",
   "scripts": {
-    "dev": "pnpm --filter @aegis/base --filter @aegis/soc-tools dev",
+    "dev": "pnpm --filter @aegis/base --filter @aegis/soc-tools --filter @aegis/asset-repo dev",
     "dev:base": "pnpm --filter @aegis/base dev",
     "dev:soc": "pnpm --filter @aegis/soc-tools dev",
+    "dev:asset": "pnpm --filter @aegis/asset-repo dev",
     "dev:all": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck"

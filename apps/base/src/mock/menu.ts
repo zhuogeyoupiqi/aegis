@@ -15,6 +15,12 @@ const registry: Partial<Record<string, AppRegistration>> = {
     devEntry: 'http://localhost:8002/',
     prodEntry: '/child/soc-tools/',
   },
+  [APP_CODES.ASSET_REPO]: {
+    code: APP_CODES.ASSET_REPO,
+    name: '资产仓库',
+    devEntry: 'http://localhost:8001/',
+    prodEntry: '/child/asset-repo/',
+  },
 }
 
 /**
@@ -47,7 +53,7 @@ const groups: MenuGroup[] = [
     key: 'asset',
     title: '知识资产',
     children: [
-      { key: 'asset-repo', title: '资产仓库', icon: 'assets', appCode: 'asset-repo', path: '/asset/repo', stub: true },
+      { key: 'asset-repo', title: '资产仓库', icon: 'assets', appCode: 'asset-repo', path: '/asset/repo' },
       { key: 'vuln-kb', title: '漏洞知识库', icon: 'shield', appCode: 'asset-repo', path: '/asset/vulns', stub: true },
       { key: 'playbooks', title: 'Playbook 库', icon: 'playbook', appCode: 'asset-repo', path: '/asset/playbooks', stub: true },
     ],

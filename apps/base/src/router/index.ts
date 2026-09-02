@@ -31,13 +31,15 @@ const router = createRouter({
           path: 'soc/:rest(.*)*',
           name: 'soc-child',
           component: () => import('@/views/ChildAppView.vue'),
-          meta: { title: 'menu.items.syslog-sender', appCode: 'soc-tools', menuPrefix: true },
+          meta: { title: 'menu.items.syslog-sender', appCode: 'soc-tools', menuPrefix: true, childPrefix: '/soc' },
         },
         {
+          // asset 前缀同样交给子应用容器：/asset/repo → 资产仓库子应用 #/repo。
+          // vuln-kb / playbooks 仍是菜单里的 stub 入口，由路由守卫重定向到占位页
           path: 'asset/:rest(.*)*',
-          name: 'asset-stub',
-          component: () => import('@/views/StubView.vue'),
-          meta: { title: 'route.comingSoon', menuPrefix: true },
+          name: 'asset-child',
+          component: () => import('@/views/ChildAppView.vue'),
+          meta: { title: 'menu.items.asset-repo', appCode: 'asset-repo', menuPrefix: true, childPrefix: '/asset' },
         },
         {
           path: 'ai/:rest(.*)*',

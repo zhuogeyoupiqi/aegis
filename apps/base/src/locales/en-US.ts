@@ -146,7 +146,7 @@ export default {
     unregistered: 'Child app "{code}" is not in the registry. Check the menu data.',
     loading: 'Loading "{name}"…',
     loadFailed: 'Failed to load child app',
-    checkServer: 'Make sure soc-tools is running (pnpm dev:soc, port 8002)',
+    checkServer: 'Make sure the child dev server is running (soc-tools 8002 / asset-repo 8001)',
     retry: 'Retry',
   },
   route: {
