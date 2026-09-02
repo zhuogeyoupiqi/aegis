@@ -67,7 +67,7 @@ function go(item: { path: string }): void {
   </aside>
 </template>
 
-<style scoped>
+<style scoped lang="less">
 .sidebar {
   width: 208px;
   flex: none;
@@ -79,6 +79,22 @@ function go(item: { path: string }): void {
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 25;
+
+  /* 折叠态：只留图标，文字与分组标题隐藏（title 属性兜底） */
+  &.collapsed {
+    width: 64px;
+
+    .brand { justify-content: center; padding-inline: 0; }
+
+    .brand__name,
+    .menu-item .label,
+    .menu-group-title {
+      opacity: 0; width: 0; overflow: hidden; padding-inline: 0;
+    }
+
+    .menu-item { justify-content: center; padding: 0; }
+    .menu-group-title { height: 10px; padding-block: 0; }
+  }
 }
 
 .brand {
@@ -86,23 +102,27 @@ function go(item: { path: string }): void {
   padding: 13px 16px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
+
+  &__logo {
+    width: 28px; height: 28px; flex: none; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--grad-brand);
+    color: #fff; font-weight: 800; font-size: 14px;
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--primary) 35%, transparent);
+  }
+
+  &__name { font-size: 15px; font-weight: 700; letter-spacing: 0.5px; }
 }
-.brand__logo {
-  width: 28px; height: 28px; flex: none; border-radius: 9px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--grad-brand);
-  color: #fff; font-weight: 800; font-size: 14px;
-  box-shadow: 0 3px 10px color-mix(in srgb, var(--primary) 35%, transparent);
-}
-.brand__name { font-size: 15px; font-weight: 700; letter-spacing: 0.5px; }
 
 .menu { padding: 8px; flex: 1; }
+
 .menu-group-title {
   padding: 14px 12px 6px;
   font-size: 11px; color: var(--fg-muted); letter-spacing: 1px;
   white-space: nowrap;
   transition: opacity var(--ease);
 }
+
 .menu-item {
   position: relative;
   display: flex; align-items: center; gap: 10px;
@@ -111,33 +131,25 @@ function go(item: { path: string }): void {
   color: var(--fg-sub); cursor: pointer;
   white-space: nowrap; user-select: none;
   transition: all var(--ease);
-}
-.menu-item:hover { background: var(--bg-input); color: var(--fg); }
-.menu-item.active {
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--primary) 12%, transparent),
-    color-mix(in srgb, var(--grad-2) 5%, transparent)
-  );
-  color: var(--primary); font-weight: 600;
-}
-/* 激活态左侧主题色指示条 */
-.menu-item.active::before {
-  content: '';
-  position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
-  border-radius: 2px;
-  background: var(--grad-btn);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 50%, transparent);
-}
 
-/* 折叠态：只留图标，文字与分组标题隐藏（title 属性兜底） */
-.sidebar.collapsed { width: 64px; }
-.sidebar.collapsed .brand { justify-content: center; padding-inline: 0; }
-.sidebar.collapsed .brand__name,
-.sidebar.collapsed .menu-item .label,
-.sidebar.collapsed .menu-group-title {
-  opacity: 0; width: 0; overflow: hidden; padding-inline: 0;
+  &:hover { background: var(--bg-input); color: var(--fg); }
+
+  &.active {
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--primary) 12%, transparent),
+      color-mix(in srgb, var(--grad-2) 5%, transparent)
+    );
+    color: var(--primary); font-weight: 600;
+
+    /* 激活态左侧主题色指示条 */
+    &::before {
+      content: '';
+      position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px;
+      border-radius: 2px;
+      background: var(--grad-btn);
+      box-shadow: 0 0 8px color-mix(in srgb, var(--primary) 50%, transparent);
+    }
+  }
 }
-.sidebar.collapsed .menu-item { justify-content: center; padding: 0; }
-.sidebar.collapsed .menu-group-title { height: 10px; padding-block: 0; }
 </style>

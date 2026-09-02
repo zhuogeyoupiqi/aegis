@@ -11,7 +11,7 @@ export const lastLang = ref<'zh-CN' | 'en-US'>('zh-CN')
 
 /**
  * 把主题快照应用到当前应用根节点。
- * 子应用与基座共用同一份 tokens.css（monorepo L1 源码共享），
+ * 子应用与基座共用同一份 tokens.less（monorepo L1 源码共享），
  * 所以同步主题 = 同步几个 CSS 变量，天然无版本漂移。
  * 同时写入 lastThemeSnapshot：antd 组件的主题从这份响应式数据派生（见 antd-theme.ts）。
  */

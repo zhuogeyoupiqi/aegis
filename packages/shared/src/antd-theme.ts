@@ -12,7 +12,7 @@ import type { ThemeSnapshot } from '@aegis/contract'
  */
 export const lastThemeSnapshot = ref<ThemeSnapshot | null>(null)
 
-/** 未收到基座数据前的兜底主题：与 tokens.css 的默认值保持一致（violet / 浅色） */
+/** 未收到基座数据前的兜底主题：与 tokens.less 的默认值保持一致（violet / 浅色） */
 const FALLBACK_SNAPSHOT: ThemeSnapshot = {
   mode: 'light',
   primary: '#7c3aed',
@@ -25,7 +25,7 @@ const FALLBACK_SNAPSHOT: ThemeSnapshot = {
  *
  * 桥接原则：壳层（布局/标签栏）用我们自己的 CSS 变量着色，页面里的 antd 组件
  * 用 token 着色——两者从同一份偏好状态派生，保证品牌色与明暗永远一致。
- * 圆角对齐 V2 规范（控件 10px / 容器 16px），字体继承 tokens.css 的字体栈。
+ * 圆角对齐 V2 规范（控件 10px / 容器 16px），字体继承 tokens.less 的字体栈。
  */
 export function buildAntdTheme(snapshot: ThemeSnapshot | null): ThemeConfig {
   const s = snapshot ?? FALLBACK_SNAPSHOT
@@ -36,7 +36,7 @@ export function buildAntdTheme(snapshot: ThemeSnapshot | null): ThemeConfig {
       colorLink: s.primary,
       borderRadius: 10,
       borderRadiusLG: 16,
-      // 与 tokens.css 的 --font-body 一致，避免 antd 组件字体和壳层打架
+      // 与 tokens.less 的 --font-body 一致，避免 antd 组件字体和壳层打架
       fontFamily:
         "'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', 'Segoe UI', Arial, sans-serif",
     },

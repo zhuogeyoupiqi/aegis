@@ -6,20 +6,33 @@
      其余主色衍生色用 color-mix() 派生，换主题色一处生效
    - 明暗切换：html[data-theme]，终端区恒定深色不参与切换
    ============================================================ */
+
+// ---- Less 常量：设计系统原色（用于生成 CSS 变量，避免魔法值散落） ----
+@primary: #7c3aed;
+@grad-to: #c026d3;
+
+@bg-page-light: #f5f5f7;
+@bg-card-light: #ffffff;
+@bg-input-light: #f5f6f8;
+
+@bg-page-dark: #0f1016;
+@bg-card-dark: #171821;
+@bg-input-dark: #232430;
+
 :root {
   /* ---- 主题色（默认：紫罗兰，运行时由主题系统覆写） ---- */
-  --primary: #7c3aed;
-  --grad-1: #7c3aed;
-  --grad-2: #c026d3;
+  --primary: @primary;
+  --grad-1: @primary;
+  --grad-2: @grad-to;
   --grad-btn: linear-gradient(90deg, var(--grad-1), var(--grad-2));
   --grad-brand: linear-gradient(135deg, var(--grad-1), var(--grad-2));
 
   /* ---- 浅色（默认）基调 ---- */
-  --bg-page: #f5f5f7;
-  --bg-card: #ffffff;
-  --bg-float: #ffffff;
-  --bg-input: #f5f6f8;
-  --input-focus-bg: #ffffff;
+  --bg-page: @bg-page-light;
+  --bg-card: @bg-card-light;
+  --bg-float: @bg-card-light;
+  --bg-input: @bg-input-light;
+  --input-focus-bg: @bg-card-light;
   --bg-glass: rgba(255, 255, 255, 0.82);
   --bg-drawer: rgba(255, 255, 255, 0.96);
   /* 终端/日志恒定深色：不随主题切换（SOC 长时间读日志的护眼刚需） */
@@ -63,10 +76,10 @@
    后注入的子应用 :root 会覆盖基座暗色变量，导致切到 syslog 时基座变亮。
    加 html 前缀把特异性提到 (0,2,0)，可免疫该覆盖。 */
 html[data-theme='dark'] {
-  --bg-page: #0f1016;
-  --bg-card: #171821;
+  --bg-page: @bg-page-dark;
+  --bg-card: @bg-card-dark;
   --bg-float: #1d1e29;
-  --bg-input: #232430;
+  --bg-input: @bg-input-dark;
   --input-focus-bg: #262733;
   --bg-glass: rgba(23, 24, 33, 0.85);
   --bg-drawer: rgba(29, 30, 41, 0.96);
@@ -90,13 +103,30 @@ html[data-theme='dark'] {
 }
 
 /* ---- 无障碍模式（参考 Vben 的项目配置）---- */
-html.color-weak { filter: invert(80%) hue-rotate(180deg); }
-html.gray-mode { filter: grayscale(1); }
+html {
+  &.color-weak { filter: invert(80%) hue-rotate(180deg); }
+  &.gray-mode { filter: grayscale(1); }
+}
 
 /* ---- 滚动条 ---- */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: rgba(16, 16, 20, 0.14); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(16, 16, 20, 0.24); }
 ::-webkit-scrollbar-track { background: transparent; }
-html[data-theme='dark'] ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); }
-html[data-theme='dark'] ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.26); }
+
+.scrollbar-thumb(@bg) {
+  background: @bg;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  .scrollbar-thumb(rgba(16, 16, 20, 0.14));
+
+  &:hover { .scrollbar-thumb(rgba(16, 16, 20, 0.24)); }
+}
+
+html[data-theme='dark'] {
+  ::-webkit-scrollbar-thumb {
+    .scrollbar-thumb(rgba(255, 255, 255, 0.16));
+
+    &:hover { .scrollbar-thumb(rgba(255, 255, 255, 0.26)); }
+  }
+}

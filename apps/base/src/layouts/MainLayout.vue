@@ -60,22 +60,24 @@ watch(() => appStore.prefs.layout, syncTopGroup)
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="less">
 .shell {
   height: 100vh;
   display: flex;
   overflow: hidden;
-}
-.shell__main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.shell__content {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 18px 20px 28px;
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  &__content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 18px 20px 28px;
+  }
 }
 </style>

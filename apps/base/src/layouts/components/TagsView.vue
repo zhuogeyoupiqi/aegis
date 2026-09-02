@@ -151,7 +151,7 @@ function ctxCloseOthers(): void {
   </nav>
 </template>
 
-<style scoped>
+<style scoped lang="less">
 .tagsview {
   height: 40px;
   flex: none;
@@ -165,11 +165,14 @@ function ctxCloseOthers(): void {
   position: relative;
   z-index: 20;
 }
+
 .tabs {
   display: flex; align-items: stretch;
   overflow-x: auto; scrollbar-width: none;
+
+  &::-webkit-scrollbar { display: none; }
 }
-.tabs::-webkit-scrollbar { display: none; }
+
 .tab {
   position: relative;
   display: flex; align-items: center; gap: 7px;
@@ -177,30 +180,40 @@ function ctxCloseOthers(): void {
   color: var(--fg-muted); cursor: pointer; user-select: none;
   font-size: 12.5px; white-space: nowrap;
   transition: color var(--ease), background var(--ease);
+
+  &:hover { color: var(--fg-sub); background: var(--bg-input); }
+  &.active {
+    color: var(--fg); background: var(--bg-card); font-weight: 600;
+
+    /* 子应用识别色条 */
+    .tab__strip { background: var(--tab-color); }
+  }
+
+  &__strip {
+    position: absolute; top: 0; left: 10px; right: 10px; height: 2.5px;
+    border-radius: 0 0 3px 3px;
+    background: transparent;
+    transition: background var(--ease);
+  }
+
+  &__title { overflow: hidden; text-overflow: ellipsis; }
+  &__pin { color: var(--tab-color); display: flex; align-items: center; justify-content: center; }
+
+  &__close {
+    width: 16px; height: 16px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--fg-muted); opacity: 0;
+    transition: all var(--ease);
+
+    .tab:hover & { opacity: 1; }
+
+    &:hover {
+      background: color-mix(in srgb, var(--sev-critical) 10%, transparent);
+      color: var(--sev-critical);
+    }
+  }
 }
-.tab:hover { color: var(--fg-sub); background: var(--bg-input); }
-.tab.active { color: var(--fg); background: var(--bg-card); font-weight: 600; }
-/* 子应用识别色条 */
-.tab__strip {
-  position: absolute; top: 0; left: 10px; right: 10px; height: 2.5px;
-  border-radius: 0 0 3px 3px;
-  background: transparent;
-  transition: background var(--ease);
-}
-.tab.active .tab__strip { background: var(--tab-color); }
-.tab__title { overflow: hidden; text-overflow: ellipsis; }
-.tab__pin { color: var(--tab-color); display: flex; align-items: center; justify-content: center; }
-.tab__close {
-  width: 16px; height: 16px; border-radius: 4px;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--fg-muted); opacity: 0;
-  transition: all var(--ease);
-}
-.tab:hover .tab__close { opacity: 1; }
-.tab__close:hover {
-  background: color-mix(in srgb, var(--sev-critical) 10%, transparent);
-  color: var(--sev-critical);
-}
+
 .tag-actions { margin-left: auto; display: flex; align-items: center; }
 
 .ctx-menu {
@@ -212,15 +225,18 @@ function ctxCloseOthers(): void {
   box-shadow: var(--shadow-float);
   z-index: 95;
 }
+
 .ctx-item {
   display: flex; align-items: center; gap: 9px;
   padding: 7px 11px; border-radius: 8px;
   color: var(--fg-sub); font-size: 12.5px; cursor: pointer;
   transition: all var(--ease);
+
+  &:hover {
+    background: color-mix(in srgb, var(--primary) 7%, transparent);
+    color: var(--fg);
+  }
+
+  &.disabled { opacity: 0.4; pointer-events: none; }
 }
-.ctx-item:hover {
-  background: color-mix(in srgb, var(--primary) 7%, transparent);
-  color: var(--fg);
-}
-.ctx-item.disabled { opacity: 0.4; pointer-events: none; }
 </style>

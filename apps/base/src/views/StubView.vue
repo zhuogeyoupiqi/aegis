@@ -49,7 +49,7 @@ const text = computed(() => (group.value ? t('stub.text', { group: group.value }
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="less">
 .stub {
   min-height: calc(100vh - 158px);
   display: flex; align-items: center; justify-content: center;
@@ -58,14 +58,17 @@ const text = computed(() => (group.value ? t('stub.text', { group: group.value }
   border-radius: var(--radius);
   box-shadow: var(--shadow-card);
   padding: 40px 20px;
+
+  &__icon {
+    width: 64px; height: 64px; border-radius: 20px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 9%, transparent);
+  }
+
+  h1 { font-size: 17px; }
+
+  &__text { font-size: 12.5px; color: var(--fg-sub); line-height: 1.7; }
+  &__sub { color: var(--fg-muted); font-size: 11.5px; }
 }
-.stub__icon {
-  width: 64px; height: 64px; border-radius: 20px;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 9%, transparent);
-}
-.stub h1 { font-size: 17px; }
-.stub__text { font-size: 12.5px; color: var(--fg-sub); line-height: 1.7; }
-.stub__sub { color: var(--fg-muted); font-size: 11.5px; }
 </style>

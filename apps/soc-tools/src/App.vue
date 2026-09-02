@@ -37,7 +37,7 @@ const antdLocale = computed(() => (lastLang.value === 'en-US' ? enUS : zhCN))
   </a-config-provider>
 </template>
 
-<style scoped>
+<style scoped lang="less">
 .app {
   min-height: 100vh;
 }

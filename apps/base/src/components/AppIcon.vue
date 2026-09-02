@@ -19,7 +19,7 @@ withDefaults(defineProps<{ name: string; size?: number }>(), { size: 16 })
   />
 </template>
 
-<style scoped>
+<style scoped lang="less">
 /*
   行内基线处理（与 antd 图标同配方）：svg 默认按文本基线对齐，会在文字行里
   抬高 2~3px；inline-flex + -0.125em 让图标与文字视觉居中，且不影响

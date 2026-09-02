@@ -98,7 +98,7 @@ const roleText = computed(() => (userStore.userInfo?.roles || []).join(' · ') |
   </header>
 </template>
 
-<style scoped>
+<style scoped lang="less">
 .topbar {
   height: 48px;
   flex: none;
@@ -112,24 +112,32 @@ const roleText = computed(() => (userStore.userInfo?.roles || []).join(' · ') |
   border-bottom: 1px solid var(--border);
   z-index: 30;
 }
-.brand-mini { display: flex; align-items: center; gap: 8px; }
-.brand-mini__logo {
-  width: 26px; height: 26px; border-radius: 8px;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--grad-brand);
-  color: #fff; font-weight: 800; font-size: 13px;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent);
+
+.brand-mini {
+  display: flex; align-items: center; gap: 8px;
+
+  &__logo {
+    width: 26px; height: 26px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--grad-brand);
+    color: #fff; font-weight: 800; font-size: 13px;
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent);
+  }
+
+  b { font-size: 14px; letter-spacing: 0.4px; }
 }
-.brand-mini b { font-size: 14px; letter-spacing: 0.4px; }
 
 .breadcrumb {
   display: flex; align-items: center; gap: 7px;
   color: var(--fg-muted); font-size: 13px; user-select: none;
   min-width: 0;
+
+  b { color: var(--fg); font-weight: 600; white-space: nowrap; }
 }
-.breadcrumb b { color: var(--fg); font-weight: 600; white-space: nowrap; }
+
 .crumb--root { white-space: nowrap; }
 .sep { opacity: 0.5; }
+
 .app-chip {
   display: inline-flex; align-items: center;
   padding: 1px 8px; border-radius: 10px; font-size: 11px;
@@ -138,6 +146,7 @@ const roleText = computed(() => (userStore.userInfo?.roles || []).join(' · ') |
   border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
   white-space: nowrap;
 }
+
 .spacer { flex: 1; }
 
 .avatar {
@@ -147,6 +156,7 @@ const roleText = computed(() => (userStore.userInfo?.roles || []).join(' · ') |
   color: #fff; font-size: 12px; font-weight: 700;
   box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent);
 }
+
 /* overlay 虽被传送至 body 渲染，但 scoped data 属性仍挂在这些元素上，样式正常生效 */
 .avatar-menu {
   min-width: 180px; padding: 6px;
@@ -154,12 +164,14 @@ const roleText = computed(() => (userStore.userInfo?.roles || []).join(' · ') |
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow-float);
+
+  &__head {
+    padding: 8px 10px 10px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 5px;
+
+    b { display: block; font-size: 13px; }
+    span { font-size: 11px; color: var(--fg-muted); }
+  }
 }
-.avatar-menu__head {
-  padding: 8px 10px 10px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 5px;
-}
-.avatar-menu__head b { display: block; font-size: 13px; }
-.avatar-menu__head span { font-size: 11px; color: var(--fg-muted); }
 </style>

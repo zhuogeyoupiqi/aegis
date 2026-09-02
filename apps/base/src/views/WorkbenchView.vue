@@ -118,34 +118,41 @@ function go(item: FlatMenuItem): void {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="less">
 .hello {
   display: flex; align-items: center; gap: 14px;
   padding: 22px 24px;
   background:
     radial-gradient(420px 180px at 8% 0%, color-mix(in srgb, var(--primary) 12%, transparent), transparent),
     var(--bg-card);
-}
-.hello h1 { font-size: 19px; font-weight: 700; }
-.hello p { margin-top: 6px; font-size: 12.5px; color: var(--fg-muted); }
-.hello__badge {
-  margin-left: auto; flex: none;
-  font-family: var(--font-mono); font-size: 11.5px;
+
+  h1 { font-size: 19px; font-weight: 700; }
+  p { margin-top: 6px; font-size: 12.5px; color: var(--fg-muted); }
+
+  &__badge {
+    margin-left: auto; flex: none;
+    font-family: var(--font-mono); font-size: 11.5px;
+  }
 }
 
 .stats {
   margin-top: 14px;
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
 }
-.stat { display: flex; align-items: center; gap: 13px; padding: 16px 18px; }
-.stat__icon {
-  width: 38px; height: 38px; border-radius: 11px;
-  display: flex; align-items: center; justify-content: center;
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 9%, transparent);
+
+.stat {
+  display: flex; align-items: center; gap: 13px; padding: 16px 18px;
+
+  &__icon {
+    width: 38px; height: 38px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 9%, transparent);
+  }
+
+  b { display: block; font-size: 19px; font-family: var(--font-mono); }
+  span { font-size: 11.5px; color: var(--fg-muted); }
 }
-.stat b { display: block; font-size: 19px; font-family: var(--font-mono); }
-.stat span { font-size: 11.5px; color: var(--fg-muted); }
 
 .grid {
   margin-top: 14px;
@@ -156,6 +163,7 @@ function go(item: FlatMenuItem): void {
 .entries {
   display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
 }
+
 .entry {
   position: relative;
   display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
@@ -165,32 +173,42 @@ function go(item: FlatMenuItem): void {
   cursor: pointer; font-family: inherit;
   transition: all var(--ease);
   text-align: left;
-}
-.entry:hover {
-  background: var(--bg-card);
-  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(16, 16, 20, 0.08);
-}
-.entry__icon { color: var(--primary); }
-.entry b { font-size: 13px; color: var(--fg); }
-.entry__group { font-size: 11px; color: var(--fg-muted); }
-.entry.stub { opacity: 0.62; }
-.entry__badge {
-  position: absolute; top: 9px; right: 9px;
-  margin: 0;
-  font-size: 10px; line-height: 16px;
+
+  &:hover {
+    background: var(--bg-card);
+    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(16, 16, 20, 0.08);
+  }
+
+  &__icon { color: var(--primary); }
+
+  b { font-size: 13px; color: var(--fg); }
+  &__group { font-size: 11px; color: var(--fg-muted); }
+
+  &.stub { opacity: 0.62; }
+
+  &__badge {
+    position: absolute; top: 9px; right: 9px;
+    margin: 0;
+    font-size: 10px; line-height: 16px;
+  }
 }
 
 .checklist { display: grid; gap: 4px; }
+
 .check {
   display: flex; align-items: center; gap: 9px;
   padding: 7px 8px; border-radius: 8px;
   font-size: 12.5px; color: var(--fg-muted);
+
+  :deep(svg) { color: var(--fg-muted); flex: none; }
+
+  &.done {
+    color: var(--fg-sub);
+    :deep(svg) { color: var(--sev-low); }
+  }
 }
-.check.done { color: var(--fg-sub); }
-.check.done :deep(svg) { color: var(--sev-low); }
-.check :deep(svg) { color: var(--fg-muted); flex: none; }
 
 @media (max-width: 1100px) {
   .grid { grid-template-columns: 1fr; }

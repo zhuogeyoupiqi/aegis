@@ -122,12 +122,13 @@ watch(() => appStore.prefs.lang, pushData)
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="less">
 .child-app {
   /* 子应用视口高度：扣除顶栏 48 + 标签栏 40 + 内容区上下留白 */
   min-height: calc(100vh - 158px);
   display: flex;
 }
+
 micro-app {
   flex: 1;
   width: 100%;
@@ -148,11 +149,16 @@ micro-app {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-card);
+
+  p { font-size: 13px; color: var(--fg-sub); }
+
+  &__sub { font-size: 11.5px; color: var(--fg-muted); font-family: var(--font-mono); }
+
+  &--error {
+    :deep(svg) { color: var(--sev-critical); }
+    .btn { margin-top: 8px; }
+  }
 }
-.state p { font-size: 13px; color: var(--fg-sub); }
-.state__sub { font-size: 11.5px; color: var(--fg-muted); font-family: var(--font-mono); }
-.state--error :deep(svg) { color: var(--sev-critical); }
-.state--error .btn { margin-top: 8px; }
 
 .spinner {
   width: 26px; height: 26px;

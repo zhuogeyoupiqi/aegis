@@ -81,7 +81,7 @@ function itemClick(path: string): void {
   </nav>
 </template>
 
-<style scoped>
+<style scoped lang="less">
 .topnav {
   height: 42px;
   flex: none;
@@ -94,39 +94,44 @@ function itemClick(path: string): void {
   -webkit-backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--border);
   z-index: 28;
-}
-.topnav__group {
-  position: relative;
-  display: flex; align-items: center; gap: 4px;
-  padding: 0 13px; margin: 4px 0;
-  border-radius: var(--radius-ctl);
-  color: var(--fg-sub); font-size: 13px;
-  cursor: pointer; user-select: none;
-  transition: all var(--ease);
-}
-.topnav__group:hover { background: var(--bg-input); color: var(--fg); }
-.topnav__group.active {
-  background: color-mix(in srgb, var(--primary) 10%, transparent);
-  color: var(--primary); font-weight: 600;
-}
-.topnav__dropdown {
-  position: absolute; top: calc(100% + 6px); left: 0;
-  min-width: 176px; padding: 6px;
-  background: var(--bg-float);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: var(--shadow-float);
-  z-index: 40;
-}
-.topnav__item {
-  display: flex; align-items: center; gap: 9px;
-  padding: 8px 10px; border-radius: 8px;
-  color: var(--fg-sub); font-size: 12.5px;
-  cursor: pointer;
-  transition: all var(--ease);
-}
-.topnav__item:hover {
-  background: color-mix(in srgb, var(--primary) 8%, transparent);
-  color: var(--fg);
+
+  &__group {
+    position: relative;
+    display: flex; align-items: center; gap: 4px;
+    padding: 0 13px; margin: 4px 0;
+    border-radius: var(--radius-ctl);
+    color: var(--fg-sub); font-size: 13px;
+    cursor: pointer; user-select: none;
+    transition: all var(--ease);
+
+    &:hover { background: var(--bg-input); color: var(--fg); }
+    &.active {
+      background: color-mix(in srgb, var(--primary) 10%, transparent);
+      color: var(--primary); font-weight: 600;
+    }
+  }
+
+  &__dropdown {
+    position: absolute; top: calc(100% + 6px); left: 0;
+    min-width: 176px; padding: 6px;
+    background: var(--bg-float);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: var(--shadow-float);
+    z-index: 40;
+  }
+
+  &__item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 10px; border-radius: 8px;
+    color: var(--fg-sub); font-size: 12.5px;
+    cursor: pointer;
+    transition: all var(--ease);
+
+    &:hover {
+      background: color-mix(in srgb, var(--primary) 8%, transparent);
+      color: var(--fg);
+    }
+  }
 }
 </style>

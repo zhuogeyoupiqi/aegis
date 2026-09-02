@@ -174,7 +174,7 @@ function forgot(): void {
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="less">
 .login-page {
   height: 100vh;
   display: flex; align-items: center; justify-content: center;
@@ -182,12 +182,14 @@ function forgot(): void {
   position: relative;
   overflow: hidden;
 }
+
 .glow {
   position: fixed; border-radius: 50%;
   filter: blur(110px); pointer-events: none;
+
+  &--l { width: 420px; height: 420px; top: -160px; left: -120px; background: color-mix(in srgb, var(--primary) 10%, transparent); }
+  &--r { width: 380px; height: 380px; top: -140px; right: -100px; background: color-mix(in srgb, var(--grad-2) 8%, transparent); }
 }
-.glow--l { width: 420px; height: 420px; top: -160px; left: -120px; background: color-mix(in srgb, var(--primary) 10%, transparent); }
-.glow--r { width: 380px; height: 380px; top: -140px; right: -100px; background: color-mix(in srgb, var(--grad-2) 8%, transparent); }
 
 .login-card {
   width: min(880px, 100%);
@@ -211,42 +213,57 @@ function forgot(): void {
   background: linear-gradient(160deg, #7c3aed 0%, #9333ea 48%, #d946ef 100%);
   overflow: hidden;
 }
-.brand-row { display: flex; align-items: center; gap: 11px; }
-.brand-row__logo {
-  width: 38px; height: 38px; border-radius: 12px;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  font-weight: 800; font-size: 18px;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+
+.brand-row {
+  display: flex; align-items: center; gap: 11px;
+
+  &__logo {
+    width: 38px; height: 38px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, 0.16);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    font-weight: 800; font-size: 18px;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+
+  &__text {
+    b { display: block; font-size: 18px; letter-spacing: 2px; }
+    span { font-size: 11.5px; opacity: 0.75; letter-spacing: 1px; }
+  }
 }
-.brand-row__text b { display: block; font-size: 18px; letter-spacing: 2px; }
-.brand-row__text span { font-size: 11.5px; opacity: 0.75; letter-spacing: 1px; }
 
 .tagline {
   margin-top: 44px;
   font-size: 17px; line-height: 1.75; font-weight: 600;
 }
-.features { list-style: none; margin-top: 30px; display: grid; gap: 16px; }
-.features li { display: flex; gap: 11px; align-items: flex-start; }
-.features__icon {
-  width: 30px; height: 30px; flex: none; margin-top: 1px;
-  border-radius: 9px;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.22);
+
+.features {
+  list-style: none; margin-top: 30px; display: grid; gap: 16px;
+
+  li { display: flex; gap: 11px; align-items: flex-start; }
+
+  &__icon {
+    width: 30px; height: 30px; flex: none; margin-top: 1px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+  }
+
+  b { display: block; font-size: 13px; }
+  span { font-size: 11.5px; opacity: 0.72; }
 }
-.features b { display: block; font-size: 13px; }
-.features span { font-size: 11.5px; opacity: 0.72; }
 
 .metrics {
   margin-top: auto;
   display: flex; gap: 30px;
   padding-top: 26px;
+
+  b { display: block; font-size: 20px; font-family: var(--font-mono); }
+  span { font-size: 11px; opacity: 0.7; }
 }
-.metrics b { display: block; font-size: 20px; font-family: var(--font-mono); }
-.metrics span { font-size: 11px; opacity: 0.7; }
+
 .waves { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 60px; pointer-events: none; }
 
 /* ---------- 表单区 ---------- */
@@ -254,25 +271,35 @@ function forgot(): void {
   padding: 44px 44px 28px;
   display: flex; flex-direction: column;
 }
-.form-head h1 { font-size: 21px; font-weight: 700; }
-.form-head p { margin-top: 7px; font-size: 12px; color: var(--fg-muted); line-height: 1.6; }
+
+.form-head {
+  h1 { font-size: 21px; font-weight: 700; }
+  p { margin-top: 7px; font-size: 12px; color: var(--fg-muted); line-height: 1.6; }
+}
 
 .login-error { margin-top: 16px; }
-.login-form { margin-top: 24px; }
-.login-form :deep(.ant-form-item) { margin-bottom: 16px; }
+
+.login-form {
+  margin-top: 24px;
+  :deep(.ant-form-item) { margin-bottom: 16px; }
+}
 
 .form-row {
   display: flex; align-items: center; justify-content: space-between;
   margin: -2px 0 20px;
   font-size: 12.5px; color: var(--fg-sub);
 }
-.forgot { color: var(--primary); cursor: pointer; }
-.forgot:hover { text-decoration: underline; }
+
+.forgot {
+  color: var(--primary); cursor: pointer;
+  &:hover { text-decoration: underline; }
+}
 
 .demo-tip {
   margin-top: 18px;
   text-align: center; font-size: 11.5px; color: var(--fg-muted);
 }
+
 .sec-notice {
   margin-top: auto;
   display: flex; align-items: center; gap: 8px;

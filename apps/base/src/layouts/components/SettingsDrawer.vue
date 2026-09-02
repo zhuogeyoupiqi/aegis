@@ -125,16 +125,22 @@ function resetAll(): void {
   </a-drawer>
 </template>
 
-<style scoped>
+<style scoped lang="less">
 .drawer-body {
   /* a-drawer 内容区自带 padding，这里只管分区节奏 */
   display: flex; flex-direction: column;
 }
-.sec { padding: 14px 0; border-bottom: 1px dashed var(--border); }
-.sec:first-child { padding-top: 0; }
-.sec:last-child { border-bottom: none; }
-.sec h3 { font-size: 12px; color: var(--fg-muted); margin-bottom: 10px; letter-spacing: 0.5px; }
-.sec__hint { margin-top: 9px; font-size: 11px; color: var(--fg-muted); }
+
+.sec {
+  padding: 14px 0; border-bottom: 1px dashed var(--border);
+
+  &:first-child { padding-top: 0; }
+  &:last-child { border-bottom: none; }
+
+  h3 { font-size: 12px; color: var(--fg-muted); margin-bottom: 10px; letter-spacing: 0.5px; }
+
+  &__hint { margin-top: 9px; font-size: 11px; color: var(--fg-muted); }
+}
 
 .swatches { display: flex; flex-wrap: wrap; gap: 10px; }
 .swatch {
@@ -143,16 +149,20 @@ function resetAll(): void {
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   transition: transform var(--ease), border-color var(--ease);
+
+  &:hover { transform: scale(1.1); }
+  &.active { border-color: var(--fg); }
 }
-.swatch:hover { transform: scale(1.1); }
-.swatch.active { border-color: var(--fg); }
 
 .switch-row {
   display: flex; align-items: center; justify-content: space-between;
   padding: 9px 0;
+
+  .info {
+    b { display: block; font-size: 12.5px; }
+    span { font-size: 11px; color: var(--fg-muted); }
+  }
 }
-.switch-row .info b { display: block; font-size: 12.5px; }
-.switch-row .info span { font-size: 11px; color: var(--fg-muted); }
 
 .layout-cards { display: flex; gap: 10px; }
 .layout-card {
@@ -163,26 +173,38 @@ function resetAll(): void {
   color: var(--fg-muted); font-size: 11.5px;
   cursor: pointer; font-family: inherit;
   transition: all var(--ease);
+
+  &:hover { color: var(--fg-sub); }
+  &.active {
+    border-color: color-mix(in srgb, var(--primary) 55%, transparent);
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 7%, transparent);
+  }
 }
-.layout-card:hover { color: var(--fg-sub); }
-.layout-card.active {
-  border-color: color-mix(in srgb, var(--primary) 55%, transparent);
-  color: var(--primary);
-  background: color-mix(in srgb, var(--primary) 7%, transparent);
-}
+
 /* 布局缩略图：i 色块网格示意 */
 .thumb {
   width: 46px; height: 32px; border-radius: 5px;
   background: var(--bg-card);
   border: 1px solid var(--border-strong);
   display: grid; gap: 2px; padding: 3px;
+
+  i { background: color-mix(in srgb, currentColor 45%, transparent); border-radius: 2px; }
+
+  &--side {
+    grid-template-columns: 12px 1fr; grid-template-rows: 1fr 1fr;
+    i:first-child { grid-row: 1 / 3; background: color-mix(in srgb, var(--primary) 55%, transparent); }
+  }
+
+  &--top {
+    grid-template-columns: 1fr 1fr; grid-template-rows: 9px 1fr;
+    i:first-child { grid-column: 1 / 3; background: color-mix(in srgb, var(--primary) 55%, transparent); }
+  }
+
+  &--mixed {
+    grid-template-columns: 1fr 1fr 10px; grid-template-rows: 9px 1fr;
+    i:first-child { grid-column: 1 / 4; background: color-mix(in srgb, var(--primary) 55%, transparent); }
+    i:nth-child(3) { grid-row: 2; background: color-mix(in srgb, var(--primary) 35%, transparent); }
+  }
 }
-.thumb i { background: color-mix(in srgb, currentColor 45%, transparent); border-radius: 2px; }
-.thumb--side { grid-template-columns: 12px 1fr; grid-template-rows: 1fr 1fr; }
-.thumb--side i:first-child { grid-row: 1 / 3; background: color-mix(in srgb, var(--primary) 55%, transparent); }
-.thumb--top { grid-template-columns: 1fr 1fr; grid-template-rows: 9px 1fr; }
-.thumb--top i:first-child { grid-column: 1 / 3; background: color-mix(in srgb, var(--primary) 55%, transparent); }
-.thumb--mixed { grid-template-columns: 1fr 1fr 10px; grid-template-rows: 9px 1fr; }
-.thumb--mixed i:first-child { grid-column: 1 / 4; background: color-mix(in srgb, var(--primary) 55%, transparent); }
-.thumb--mixed i:nth-child(3) { grid-row: 2; background: color-mix(in srgb, var(--primary) 35%, transparent); }
 </style>

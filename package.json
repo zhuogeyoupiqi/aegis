@@ -12,6 +12,13 @@
     "typecheck": "pnpm -r typecheck"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "vue-demi", "core-js"]
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "vue-demi",
+      "core-js"
+    ]
+  },
+  "devDependencies": {
+    "less": "^4.9.0"
   }
 }
