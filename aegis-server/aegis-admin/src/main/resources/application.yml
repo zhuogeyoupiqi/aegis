@@ -27,3 +27,27 @@ mybatis-plus:
       # 逻辑删除取值：0 正常 / 1 已删（与 BaseEntity.@TableLogic 对应）
       logic-delete-value: 1
       logic-not-delete-value: 0
+
+# SA-Token 登录配置（https://sa-token.cc）
+sa-token:
+  # token 名：既是请求 header 名也是 cookie 名。走 Authorization 是业界惯例，
+  # 前端统一以 "Authorization: Bearer <token>" 携带
+  token-name: Authorization
+  # 配了前缀后，前端提交必须带 "Bearer "（含空格），否则视同未登录
+  token-prefix: Bearer
+  # 会话有效期 7 天（秒）。个人自用工具，宁可长会话少登录几次
+  timeout: 604800
+  # token 有效期内无操作则失效；-1 不限制（发包器调试可能长时间挂着不动）
+  active-timeout: -1
+  # 允许同一账号多端同时在线（基座与子应用共用一个下发的 token，天然需要）
+  is-concurrent: true
+  # 每次登录生成新 token（不复用旧 token）
+  is-share: false
+  # 关闭 cookie 读取：前端是 iframe 微前端（基座 8000 / 子应用 8002 跨源），
+  # cookie 天然带不过去，统一走 header，避免"两种通道各修各的"的歧义
+  is-read-cookie: false
+  is-read-header: true
+  # token 风格 uuid（默认值，显式写出便于阅读）
+  token-style: uuid
+  # 关闭 sa-token 自己的操作日志（我们有自己的 @AuditLog 审计）
+  is-log: false

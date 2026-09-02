@@ -67,8 +67,8 @@ Started AegisApplication in x.xxx seconds
 ```
 
 - 服务端口：**8090**（不用 8080：本机有其他项目长期占用）
-- 健康探测：`curl -X POST http://localhost:8090/api/syslog/tasks -H 'Content-Type: application/json' -d '{}'`
-  返回参数校验错误 JSON（`code: "A0001"`）即服务正常
+- 健康探测：`curl http://localhost:8090/api/syslog/tasks`
+  返回 `code: "A0401"`（未登录）即服务正常——接口已受 SA-Token 拦截
 
 ## 日常开发
 
@@ -88,6 +88,23 @@ AEGIS_DB_PASSWORD=xxx AEGIS_DB_HOST=192.168.x.x java -jar aegis-admin/target/aeg
 
 ## 接口一览
 
+### 认证（SA-Token）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| POST | `/api/auth/login` | 登录，返回 `{ token, user }`；**免鉴权**。请求体 `{ username, password }` |
+| POST | `/api/auth/logout` | 注销当前会话 |
+| GET | `/api/auth/me` | 当前登录人信息 `{ account, nickname, roles }` |
+
+演示账号 `admin / 123456`（BCrypt 落库，登录失败与用户不存在同文案 `B0101` 防账号枚举）。
+所有 `/api/**` 接口默认要求登录（拦截器见 `SaTokenConfig`），白名单仅两条：
+`POST /api/auth/login` 与 SSE `GET /api/syslog/tasks/*/events`（EventSource 无法自定义请求头）。
+
+请求需带 `Authorization: Bearer <token>`（前缀 `Bearer` 含空格，漏了视同未登录 `A0401`）。
+后端用内存会话，**重启后所有 token 失效**，前端会自动跳回登录页重新登录一次。
+
+### syslog 发包
+
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | POST | `/api/syslog/tasks` | 创建发送任务，返回 `{ taskId }`（**字符串**，雪花 ID 防 JS 精度丢失） |
@@ -103,7 +120,13 @@ AEGIS_DB_PASSWORD=xxx AEGIS_DB_HOST=192.168.x.x java -jar aegis-admin/target/aeg
 ### 创建任务
 
 ```bash
+# 先登录拿 token（此后所有业务接口都要带 Bearer 头）
+TOKEN=$(curl -s -X POST http://localhost:8090/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"123456"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["data"]["token"])')
+
 curl -X POST http://localhost:8090/api/syslog/tasks \
+  -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"targetIp":"127.0.0.1","targetPort":1514,"templateKey":"CEF","intervalMs":100,
        "payloads":["CEF:0|Security|Aegis|1.0|1001|Test|8|src=10.1.1.5","CEF:0|Security|Aegis|1.0|1002|Test|6|src=10.1.1.6"]}'

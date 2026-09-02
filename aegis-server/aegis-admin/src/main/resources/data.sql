@@ -25,9 +25,16 @@ VALUES (101, 'CEF', 'CEF 标准格式',
         'time=${timestamp} event_id=${event_id} name=${event_name} sev=${severity} src=${random_ip} dst=192.168.1.20 user=${user} action=deny',
         1, 'seed');
 
--- 管理员账号（登录接入后用；密码预留 BCrypt 占位，接入 SA-Token 时替换为真实密文并写迁移）
+-- 管理员账号：密码是 "123456" 的 BCrypt 密文（演示账号，勿用于生产）。
+-- 库里已存在该行时 INSERT IGNORE 不生效，靠下面的 UPDATE 迁移把老占位串换成真密文——
+-- WHERE 限定占位串：用户后来自己改过的密码绝不能被种子数据覆盖
 INSERT IGNORE INTO sys_user (id, username, password, nickname, status, create_by)
-VALUES (1, 'admin', '{bcrypt}pending-sa-token-integration', '管理员', 1, 'seed');
+VALUES (1, 'admin', '$2a$10$ACWx8P5Uhq7a2LmiQerZKuZ6TLP7KlSSszJO8RJThOlf8yI082tAG', '管理员', 1, 'seed');
+
+-- 老库迁移：把 SA-Token 接入前的占位密码升级为真实密文（幂等：更新过一次后 WHERE 不再命中）
+UPDATE sys_user
+SET password = '$2a$10$ACWx8P5Uhq7a2LmiQerZKuZ6TLP7KlSSszJO8RJThOlf8yI082tAG'
+WHERE id = 1 AND password = '{bcrypt}pending-sa-token-integration';
 
 INSERT IGNORE INTO sys_role (id, role_code, role_name, remark, create_by)
 VALUES (1, 'admin', '管理员', '拥有全部权限', 'seed');

@@ -44,6 +44,8 @@
     <!-- 选 17 而不是 24：17 是 LTS，Spring Boot 3.x 与主流教程的基准版本，学习期资料最多 -->
     <java.version>17</java.version>
     <mybatis-plus.version>3.5.7</mybatis-plus.version>
+    <!-- SA-Token 登录框架。1.46.0 若有异常可退 1.44.0（API 兼容，只改这里） -->
+    <sa-token.version>1.46.0</sa-token.version>
   </properties>
 
   <dependencyManagement>
@@ -84,6 +86,12 @@
         <groupId>com.baomidou</groupId>
         <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
         <version>${mybatis-plus.version}</version>
+      </dependency>
+      <!-- SA-Token 的 Boot3 专用 starter（boot2/boot4 各有对应 starter，不可混用） -->
+      <dependency>
+        <groupId>cn.dev33</groupId>
+        <artifactId>sa-token-spring-boot3-starter</artifactId>
+        <version>${sa-token.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

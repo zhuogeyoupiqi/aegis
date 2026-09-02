@@ -38,5 +38,11 @@
       <groupId>com.baomidou</groupId>
       <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
     </dependency>
+    <!-- SA-Token 登录鉴权（StpUtil/拦截器/BCrypt 均由它传递提供）。
+         放 framework 而不是某个业务模块：鉴权是技术基建，system/soc 都要吃 -->
+    <dependency>
+      <groupId>cn.dev33</groupId>
+      <artifactId>sa-token-spring-boot3-starter</artifactId>
+    </dependency>
   </dependencies>
 </project>

@@ -45,25 +45,36 @@ public class AuditAspect {
     @Around("@annotation(auditLog)")
     public Object around(ProceedingJoinPoint joinPoint, AuditLog auditLog) throws Throwable {
         long start = System.currentTimeMillis();
+        // 动作发起前先取一次操作人：logout 这类"动作本身销毁会话"的接口，
+        // 等 proceed 完再取就只剩 anonymous 了——审计要的是"谁发起的"
+        String operatorBefore = operatorProvider.currentOperator();
         try {
             Object result = joinPoint.proceed();
             // 成功也要等业务真正完成后再落库，所以记录动作放在 proceed 之后
-            saveLog(joinPoint, auditLog, System.currentTimeMillis() - start, true, null);
+            saveLog(joinPoint, auditLog, System.currentTimeMillis() - start, true, null, operatorBefore);
             return result;
         } catch (Throwable e) {
-            saveLog(joinPoint, auditLog, System.currentTimeMillis() - start, false, e.getMessage());
+            saveLog(joinPoint, auditLog, System.currentTimeMillis() - start, false, e.getMessage(), operatorBefore);
             // 异常必须原样抛出：审计不能吞掉业务异常，否则全局异常处理器收不到
             throw e;
         }
     }
 
-    /** 组装并落一条审计记录；落库自身失败只记错误日志，绝不能影响业务接口 */
-    private void saveLog(ProceedingJoinPoint joinPoint, AuditLog auditLog, long costMs, boolean success, String errorMsg) {
+    /**
+     * 组装并落一条审计记录；落库自身失败只记错误日志，绝不能影响业务接口。
+     *
+     * 操作人取值规则：优先"动作完成时"的登录人（login 成功后才有会话，此时才查得出是谁），
+     * 若完成后会话已消失（logout 销毁了自己）则回退"发起时"的登录人——
+     * 两个时点取非匿名者，login / logout / 普通操作三类场景都能记对人。
+     */
+    private void saveLog(ProceedingJoinPoint joinPoint, AuditLog auditLog, long costMs,
+                         boolean success, String errorMsg, String operatorBefore) {
         try {
             SysOpLogDO row = new SysOpLogDO();
             row.setModule(auditLog.module());
             row.setAction(auditLog.action());
-            row.setOperator(operatorProvider.currentOperator());
+            String operatorAfter = operatorProvider.currentOperator();
+            row.setOperator(OperatorProvider.ANONYMOUS.equals(operatorAfter) ? operatorBefore : operatorAfter);
             row.setDetail(renderDetail(joinPoint, auditLog.detail()));
             row.setClientIp(currentClientIp());
             row.setCostMs(costMs);
