@@ -7,20 +7,27 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "prebundle": "node scripts/prebundle-repl-deps.mjs"
   },
   "dependencies": {
     "@aegis/contract": "workspace:*",
     "@aegis/shared": "workspace:*",
+    "@vue/repl": "^4.7.2",
     "ant-design-vue": "catalog:",
+    "jszip": "^3.10.1",
     "shiki": "^4.4.3",
     "vue": "catalog:",
     "vue-i18n": "catalog:",
     "vue-router": "catalog:"
   },
   "devDependencies": {
+    "@ant-design/icons-vue": "7.0.1",
     "@types/node": "catalog:",
     "@vitejs/plugin-vue": "catalog:",
+    "dayjs": "1.11.13",
+    "es-module-shims": "2.8.4",
+    "esbuild": "^0.28.2",
     "typescript": "catalog:",
     "unplugin-vue-components": "catalog:",
     "vite": "catalog:",

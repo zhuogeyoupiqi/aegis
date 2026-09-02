@@ -20,6 +20,11 @@ export default defineConfig({
     }),
   ],
   base: process.env.NODE_ENV === 'production' ? '/child/asset-repo/' : '/',
+  // repl 走源码模式：预打包会让它的内部动态 import（编译器/预览运行时）指向错误产物，
+  // exclude 保持原生 ESM 直传（PreviewSandbox 里 defineAsyncComponent 懒加载，主包不受累）
+  optimizeDeps: {
+    exclude: ['@vue/repl'],
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

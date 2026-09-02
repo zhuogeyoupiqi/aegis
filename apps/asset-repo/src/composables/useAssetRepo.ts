@@ -2,10 +2,10 @@ import { computed, ref, watch } from 'vue'
 import { toast } from '@aegis/shared'
 import { i18n } from '@/locales'
 import { deleteItem, incrementCopy, listItems, saveItem, updateItem } from '@/api/items'
-import type { AssetItem, AssetType, ItemSavePayload } from '@/api/types'
+import type { AssetFile, AssetItem, AssetType, ItemSavePayload } from '@/api/types'
 
 /**
- * 资产仓库的业务状态机（检索 / 选中 / 表单 / 增删改 / 复制计数）。
+ * 资产仓库的业务状态机（检索 / 选中 / 表单 / 增删改 / 复制计数 / 复制动作组）。
  *
  * 子应用没有 pinia，跨组件共享用「模块级单例」：状态创建在模块作用域，
  * useAssetRepo() 只是取同一份引用——视图、详情面板、表单抽屉看到的是同一份数据。
@@ -107,7 +107,7 @@ async function submit(payload: ItemSavePayload): Promise<boolean> {
   }
 }
 
-/* ---------- 删除 / 复制 ---------- */
+/* ---------- 删除 / 复制动作组 ---------- */
 
 async function remove(item: AssetItem): Promise<void> {
   try {
@@ -120,20 +120,74 @@ async function remove(item: AssetItem): Promise<void> {
 }
 
 /**
- * 复制资产正文并打计数。
- * 顺序刻意为"先反馈复制成功，再打点"：计数接口失败不应让用户以为复制没成功；
+ * 复制成功后打计数：刻意"先反馈成功再打点"——计数接口失败不应让用户以为复制没成功；
  * 本地先把次数 +1（不立即重排——刚点完复制的条目突然跳位会很懵，下次重查自然归位）。
  */
-async function copy(item: AssetItem): Promise<void> {
-  const ok = await copyText(item.content)
-  if (!ok) {
+async function bumpCount(item: AssetItem): Promise<void> {
+  await incrementCopy(item.id).catch(() => {})
+  const local = items.value.find((i) => i.id === item.id)
+  if (local) local.copyCount++
+}
+
+/** 按语言选注释语法给"复制全部"拼分节头：粘贴进编辑器后头本身就是注释，不污染代码 */
+function banner(lang: string | null): (path: string) => string {
+  const l = (lang ?? '').toLowerCase()
+  if (l === 'vue' || l === 'md' || l === 'markdown' || l === 'html' || l === 'xml') return (p: string) => `<!-- ${p} -->`
+  if (l === 'css' || l === 'less' || l === 'scss') return (p: string) => `/* ${p} */`
+  if (l === 'python' || l === 'bash' || l === 'sh' || l === 'shell' || l === 'yaml' || l === 'toml' || l === 'env') return (p: string) => `# ${p}`
+  return (p: string) => `// ${p}`
+}
+
+/** 单文件复制（文件树/详情的"复制此文件"） */
+async function copyFile(item: AssetItem, file: AssetFile): Promise<void> {
+  if (!(await copyText(file.code))) {
+    toast(i18n.global.t('repo.copyFailed'), 'bad')
+    return
+  }
+  toast(i18n.global.t('repo.copiedFile', { path: file.path }))
+  await bumpCount(item)
+}
+
+/** 复制全部：按路径分节拼接（单文件资产的普通复制也走这里，无分节头） */
+async function copyAll(item: AssetItem): Promise<void> {
+  const text = concatFiles(item)
+  if (!(await copyText(text))) {
     toast(i18n.global.t('repo.copyFailed'), 'bad')
     return
   }
   toast(i18n.global.t('repo.copied'))
-  await incrementCopy(item.id).catch(() => {})
-  const local = items.value.find((i) => i.id === item.id)
-  if (local) local.copyCount++
+  await bumpCount(item)
+}
+
+/** link 复制 URL；其余按"多文件拼分节、单文件裸正文"的口径产出文本 */
+function concatFiles(item: AssetItem): string {
+  if (item.type === 'link') return item.url ?? ''
+  if (item.files.length <= 1) return item.files[0]?.code ?? ''
+  return item.files.map((f) => `${banner(f.lang)(f.path)}\n${f.code}`).join('\n\n')
+}
+
+/** 下载 zip：jszip 动态 import（不进主 bundle），失败退化成复制拼接文本 */
+async function downloadZip(item: AssetItem): Promise<void> {
+  try {
+    const { default: JSZip } = await import('jszip')
+    const zip = new JSZip()
+    for (const f of item.files) zip.file(f.path, f.code)
+    const blob = await zip.generateAsync({ type: 'blob' })
+    // 资产名里的路径分隔符换成全角斜杠，防止被当目录写入
+    const name = item.name.replace(/[\\/:*?"<>|]/g, '_')
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${name}.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast(i18n.global.t('repo.zipDone'))
+    await bumpCount(item)
+  } catch {
+    // jszip 加载失败（离线首访等）：退化为复制拼接文本，动作不落空
+    toast(i18n.global.t('repo.zipFallback'), 'info')
+    await copyAll(item)
+  }
 }
 
 /* ---------- 剪贴板工具 ---------- */
@@ -187,6 +241,9 @@ export function useAssetRepo() {
     submit,
     // 动作
     remove,
-    copy,
+    copyAll,
+    copyFile,
+    downloadZip,
+    concatFiles,
   }
 }

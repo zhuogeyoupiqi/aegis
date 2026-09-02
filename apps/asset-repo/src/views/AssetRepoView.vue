@@ -6,6 +6,7 @@ import { bindFeedback } from '@aegis/shared'
 import AppIcon from '@/components/AppIcon.vue'
 import ItemDetailPanel from '@/components/ItemDetailPanel.vue'
 import ItemFormDrawer from '@/components/ItemFormDrawer.vue'
+
 import { useAssetRepo } from '@/composables/useAssetRepo'
 import { useShiki } from '@/composables/useShiki'
 import { getApiMode } from '@/api/mode'
@@ -211,6 +212,45 @@ onMounted(() => {
   grid-template-columns: 330px minmax(0, 1fr);
   gap: 14px;
   min-height: 0;
+}
+
+// 平台既有断点口径（soc-tools 同款 1200px）：双栏检索台折单栏，
+// 列表压成限高横条区保住"检索+详情"的上下动线；720px 再收工具条
+@media (max-width: 1200px) {
+  .repo__body {
+    grid-template-columns: 1fr;
+  }
+
+  .repo__list {
+    max-height: 264px;
+  }
+}
+
+@media (max-width: 720px) {
+  .repo {
+    padding: 14px 12px;
+  }
+
+  .repo__head {
+    flex-direction: column;
+    align-items: stretch;
+
+    .head-actions {
+      justify-content: flex-end;
+    }
+  }
+
+  .repo__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+
+    .kw-input,
+    .tag-select {
+      max-width: none;
+      min-width: 0;
+      width: 100%;
+    }
+  }
 }
 
 .repo__list {

@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS asset_item (
     type         VARCHAR(32)  NOT NULL COMMENT '类型：snippet/component/function/doc/link',
     lang         VARCHAR(32)  NULL COMMENT '代码语言（code 类用；doc 固定 md；link 为空）',
     description  VARCHAR(512) NULL COMMENT '一句话说明',
-    content      TEXT         NOT NULL COMMENT '正文（代码/文档/URL）',
+    content      MEDIUMTEXT   NOT NULL COMMENT '正文：link=URL 原文；其余=JSON{files,entry,deps}',
     tags         VARCHAR(255) NULL COMMENT '标签，逗号分隔小写',
     copy_count   INT          NOT NULL DEFAULT 0 COMMENT '复制次数（使用频率排序权重）',
     create_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -207,3 +207,8 @@ CREATE TABLE IF NOT EXISTS asset_item (
     KEY idx_type (type),
     KEY idx_copy_count (copy_count)
 ) ENGINE = InnoDB COMMENT = '个人开发资产条目';
+
+-- V2 迁移：已存在的库不会走进上面的 CREATE IF NOT EXISTS，用幂等 MODIFY 把 TEXT 升 MEDIUMTEXT。
+-- 多文件 JSON（utf8mb4 下 64KB 仅约 2 万汉字）超 TEXT 上限很常见；MODIFY 重复执行无害，
+-- 每次启动都跑一遍的代价是开发库小表的一次表定义检查，无感
+ALTER TABLE asset_item MODIFY COLUMN content MEDIUMTEXT NOT NULL COMMENT '正文：link=URL 原文；其余=JSON{files,entry,deps}';

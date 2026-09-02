@@ -1,15 +1,21 @@
 package com.aegis.asset.repo;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
+import java.util.List;
+
 /**
- * 新增 / 更新资产条目的共用请求体。
+ * 新增 / 更新资产条目的共用请求体（V2 结构化形状）。
  *
- * 五类资产共用一个 DTO：字段形状相同，type 已用 @Pattern 白名单收死，
- * 其余字段（lang/description/tags）对五类各自的可空语义不同（link 用不到 lang），
- * 交给前端按类型控制表单显隐——后端只管"存什么"，不重复做一遍表单交互逻辑。
+ * 五类资产仍共用一个 DTO：link 走 url（files 必须为空），其余走 files 多文件目录化
+ * （git 模型平铺路径）+ entry 预览入口 + deps 依赖声明。
+ * name/type/lang/description/tags 语义与 V1 完全一致，前端表单不用改已有部分。
+ *
+ * files/deps 是集合字段，Bean Validation 不会自动下钻校验集合元素，
+ * 必须标 @Valid 级联——漏掉的话 AssetFileDTO 上的 @NotBlank 全部形同虚设。
  */
 public class ItemSaveDTO {
 
@@ -29,10 +35,21 @@ public class ItemSaveDTO {
     @Size(max = 512, message = "说明最长 512 字")
     private String description;
 
-    /** 正文全文（link 类型就是 URL 本身） */
-    @NotBlank(message = "正文不能为空")
-    @Size(max = 60000, message = "正文最长 60000 字（TEXT 列 64KB 上限的前置拦截）")
-    private String content;
+    /** link 类型的目标 URL 原文；其余类型不填（Service 里做 type 交叉校验） */
+    @Size(max = 2048, message = "链接最长 2048 字")
+    private String url;
+
+    /** 预览入口文件路径：必须命中 files 里的某个 path（Service 校验），不预览就不填 */
+    @Size(max = 255, message = "预览入口最长 255 字")
+    private String entry;
+
+    /** 资产文件清单（link 为空；文件数上限与路径规范化在 Service 统一收口） */
+    @Valid
+    private List<AssetFileDTO> files;
+
+    /** 在线预览的外部依赖声明（import map 数据源） */
+    @Valid
+    private List<AssetDepDTO> deps;
 
     /** 标签，逗号分隔原始串（大小写/去重/数量上限由 Service 统一规范化） */
     @Size(max = 255, message = "标签最长 255 字")
@@ -70,12 +87,36 @@ public class ItemSaveDTO {
         this.description = description;
     }
 
-    public String getContent() {
-        return content;
+    public String getUrl() {
+        return url;
     }
 
-    public void setContent(String content) {
-        this.content = content;
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    public String getEntry() {
+        return entry;
+    }
+
+    public void setEntry(String entry) {
+        this.entry = entry;
+    }
+
+    public List<AssetFileDTO> getFiles() {
+        return files;
+    }
+
+    public void setFiles(List<AssetFileDTO> files) {
+        this.files = files;
+    }
+
+    public List<AssetDepDTO> getDeps() {
+        return deps;
+    }
+
+    public void setDeps(List<AssetDepDTO> deps) {
+        this.deps = deps;
     }
 
     public String getTags() {

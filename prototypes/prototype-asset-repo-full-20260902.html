@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>资产仓库（功能完全体原型）· Aegis</title>
+<style>
+/* ============================================================
+   Aegis 资产仓库 · 功能完全体原型
+   设计基准：packages/shared/src/styles/tokens.less（V2 浅色紫渐变 SaaS）
+   —— token 一比一搬运，保证原型与真实平台视觉同源
+   ============================================================ */
+:root {
+  --primary: #7c3aed;
+  --grad-1: #7c3aed;
+  --grad-2: #c026d3;
+  --grad-btn: linear-gradient(90deg, var(--grad-1), var(--grad-2));
+
+  --bg-page: #f5f5f7;
+  --bg-card: #ffffff;
+  --bg-input: #f5f6f8;
+  --bg-terminal: #0d1117;
+
+  --border: rgba(16, 16, 20, 0.08);
+  --border-strong: rgba(16, 16, 20, 0.14);
+
+  --fg: #18181b;
+  --fg-sub: #52525b;
+  --fg-muted: #71717a;
+
+  --sev-critical: #dc2626;
+  --sev-high: #ea580c;
+  --sev-medium: #d97706;
+  --sev-low: #16a34a;
+
+  --radius: 16px;
+  --radius-ctl: 10px;
+  --shadow-card: 0 1px 2px rgba(16, 16, 20, 0.04), 0 10px 30px rgba(16, 16, 20, 0.06);
+  --shadow-float: 0 4px 12px rgba(16, 16, 20, 0.08), 0 24px 64px rgba(16, 16, 20, 0.16);
+
+  --ease: 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+
+  /* 代码高亮 token：浅色档（github-light 近似），明暗切换时整体替换 */
+  --code-bg: #f6f8fa;
+  --code-border: rgba(16, 16, 20, 0.08);
+  --tk-kw: #cf222e;
+  --tk-str: #0a3069;
+  --tk-com: #6e7781;
+  --tk-num: #0550ae;
+  --tk-tag: #116329;
+  --tk-fn: #8250df;
+}
+/* 暗色：token 整体替换（与真实平台一致的切换方式），代码 token 换 vivid 档 */
+html[data-theme='dark'] {
+  --bg-page: #0f1016;
+  --bg-card: #171821;
+  --bg-input: #232430;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --fg: #eceef4;
+  --fg-sub: #a7adc0;
+  --fg-muted: #7b8296;
+  --sev-critical: #f87171;
+  --sev-high: #fb923c;
+  --sev-medium: #facc15;
+  --sev-low: #4ade80;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 30px rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 4px 12px rgba(0, 0, 0, 0.4), 0 24px 64px rgba(0, 0, 0, 0.55);
+  --code-bg: #0d1117;
+  --code-border: rgba(255, 255, 255, 0.08);
+  --tk-kw: #ff7b72;
+  --tk-str: #a5d6ff;
+  --tk-com: #8b949e;
+  --tk-num: #79c0ff;
+  --tk-tag: #7ee787;
+  --tk-fn: #d2a8ff;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(16,16,20,.14); border-radius: 4px; }
+html[data-theme='dark'] ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); }
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font-ui);
+  background: var(--bg-page);
+  color: var(--fg);
+  font-size: 13px;
+  transition: background var(--ease), color var(--ease);
+}
+button { font-family: inherit; cursor: pointer; border: none; background: none; }
+input, textarea, select { font-family: inherit; color: var(--fg); outline: none; }
+svg { display: block; }
+
+/* ============ 平台外壳（简化基座：侧栏 + 顶栏） ============ */
+.app { display: grid; grid-template-columns: 212px minmax(0, 1fr); min-height: 100vh; }
+
+.side {
+  background: var(--bg-card);
+  border-right: 1px solid var(--border);
+  padding: 14px 10px;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.side__brand {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 8px 14px;
+  font-weight: 700; font-size: 14px;
+}
+.brand-mark {
+  width: 26px; height: 26px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--grad-1), var(--grad-2));
+  display: grid; place-items: center; color: #fff; font-size: 13px; flex: none;
+}
+.side__group { font-size: 10.5px; color: var(--fg-muted); padding: 12px 10px 5px; letter-spacing: .04em; }
+.side__item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; text-align: left;
+  padding: 7px 10px; border-radius: 9px;
+  font-size: 12.5px; color: var(--fg-sub);
+  transition: all var(--ease);
+}
+.side__item:hover { background: var(--bg-input); color: var(--fg); }
+.side__item.active {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 14%, transparent), color-mix(in srgb, var(--grad-2) 10%, transparent));
+  color: var(--primary); font-weight: 600;
+}
+.side__item.stub { color: var(--fg-muted); cursor: default; }
+.side__item.stub:hover { background: none; }
+.side__item .stub-tag { margin-left: auto; font-size: 9.5px; color: var(--fg-muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 5px; }
+
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar {
+  height: 50px; display: flex; align-items: center; gap: 12px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  backdrop-filter: blur(8px);
+  position: sticky; top: 0; z-index: 20;
+}
+.topbar__title { font-size: 13.5px; font-weight: 600; }
+.topbar__spacer { flex: 1; }
+.topbar__user {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; color: var(--fg-sub);
+}
+.avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--grad-1), var(--grad-2));
+  color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 600;
+}
+.icon-btn {
+  width: 30px; height: 30px; border-radius: 9px;
+  display: grid; place-items: center; color: var(--fg-sub);
+  border: 1px solid var(--border); background: var(--bg-card);
+  transition: all var(--ease);
+}
+.icon-btn:hover { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
+
+/* ============ 通用控件 ============ */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 13px; border-radius: var(--radius-ctl);
+  font-size: 12.5px; font-weight: 500;
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--fg-sub);
+  transition: all var(--ease);
+}
+.btn:hover { border-color: color-mix(in srgb, var(--primary) 40%, transparent); color: var(--primary); }
+.btn--primary { background: var(--grad-btn); border: none; color: #fff; box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 30%, transparent); }
+.btn--primary:hover { filter: brightness(1.06); color: #fff; }
+.btn--danger:hover { border-color: var(--sev-critical); color: var(--sev-critical); }
+.btn--sm { height: 24px; padding: 0 9px; font-size: 11.5px; border-radius: 7px; }
+
+.field {
+  height: 30px; padding: 0 10px; border-radius: var(--radius-ctl);
+  border: 1px solid var(--border); background: var(--bg-input);
+  font-size: 12.5px; transition: all var(--ease);
+}
+.field:focus { background: var(--bg-card); border-color: color-mix(in srgb, var(--primary) 50%, transparent); }
+select.field { appearance: none; cursor: pointer; padding-right: 24px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2.4'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center; }
+
+/* ============ 资产页骨架 ============ */
+.repo { padding: 18px 20px 26px; display: flex; flex-direction: column; gap: 14px; }
+.repo__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.repo__head h1 { font-size: 16px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+.repo__head p { margin-top: 5px; font-size: 12px; color: var(--fg-muted); max-width: 76ch; }
+.mode-badge {
+  font-size: 11px; font-weight: 400; font-family: var(--font-mono);
+  color: var(--fg-muted); border: 1px solid var(--border);
+  border-radius: 999px; padding: 1px 9px; white-space: nowrap;
+}
+.head-actions { display: flex; gap: 8px; flex: none; }
+
+.repo__toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.kw-input { flex: 1; min-width: 220px; max-width: 380px; position: relative; }
+.kw-input svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--fg-muted); pointer-events: none; }
+.kw-input input { width: 100%; padding-left: 30px; }
+.tag-select { min-width: 150px; max-width: 210px; }
+
+.segmented {
+  display: inline-flex; gap: 2px; padding: 3px;
+  background: var(--bg-input); border-radius: var(--radius-ctl);
+}
+.segmented button {
+  height: 24px; padding: 0 11px; border-radius: 7px;
+  font-size: 12px; color: var(--fg-muted); transition: all var(--ease);
+}
+.segmented button.on { background: var(--bg-card); color: var(--fg); font-weight: 500; box-shadow: 0 1px 3px rgba(16,16,20,.1); }
+
+.repo__body { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 14px; align-items: start; }
+
+/* ---- 左列表 ---- */
+.repo__list {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-card);
+  padding: 8px; max-height: calc(100vh - 210px); overflow-y: auto;
+}
+.item {
+  display: block; width: 100%; text-align: left;
+  border: 1px solid transparent; border-radius: 10px;
+  padding: 9px 11px; transition: all var(--ease);
+}
+.item + .item { margin-top: 5px; }
+.item:hover { border-color: color-mix(in srgb, var(--primary) 30%, transparent); }
+.item.active { border-color: color-mix(in srgb, var(--primary) 50%, transparent); background: color-mix(in srgb, var(--primary) 6%, transparent); }
+.item__top { display: flex; align-items: center; gap: 7px; color: var(--fg-muted); }
+.item__name { flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item__files { flex: none; font-size: 10px; font-family: var(--font-mono); color: var(--fg-muted); border: 1px solid var(--border); border-radius: 999px; padding: 0 6px; line-height: 1.6; }
+.item__count { flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 10.5px; font-family: var(--font-mono); color: var(--fg-muted); }
+.item__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 6px; padding-left: 20px; font-size: 11px; color: var(--fg-muted); }
+.item__lang { font-family: var(--font-mono); background: var(--bg-input); border: 1px solid var(--border); border-radius: 4px; padding: 0 5px; line-height: 1.5; }
+.item__tag { color: var(--primary); cursor: pointer; }
+.item__tag:hover { text-decoration: underline; }
+
+.list-empty { padding: 46px 10px; text-align: center; color: var(--fg-muted); font-size: 12.5px; }
+.list-empty .big { font-size: 26px; margin-bottom: 8px; opacity: .5; }
+.list-empty .hint { font-size: 11.5px; margin-top: 4px; }
+
+/* ---- 右详情 ---- */
+.repo__detail {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-card);
+  padding: 16px 18px; min-height: 560px;
+}
+.detail__head { display: flex; align-items: flex-start; gap: 12px; }
+.detail__title { flex: 1; min-width: 0; }
+.detail__title-row { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.detail__name { font-size: 15.5px; font-weight: 600; }
+.type-badge {
+  font-size: 10.5px; font-weight: 500; color: #fff;
+  border-radius: 5px; padding: 1px 7px; white-space: nowrap;
+}
+.lang-chip { font-size: 10.5px; font-family: var(--font-mono); color: var(--fg-muted); border: 1px solid var(--border); border-radius: 5px; padding: 1px 7px; }
+.detail__desc { margin-top: 7px; font-size: 12.5px; color: var(--fg-sub); line-height: 1.7; }
+.detail__actions { display: flex; gap: 8px; flex: none; }
+.detail__meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; padding-bottom: 13px; border-bottom: 1px dashed var(--border); font-size: 11.5px; color: var(--fg-muted); }
+.meta-tag { color: var(--primary); cursor: pointer; }
+.meta-tag:hover { text-decoration: underline; }
+.meta-dot { opacity: .5; }
+
+/* 视图切换：代码 / 预览 */
+.view-tabs { display: flex; align-items: center; gap: 12px; margin: 13px 0 11px; }
+.view-tabs__switch { display: inline-flex; gap: 2px; padding: 3px; background: var(--bg-input); border-radius: var(--radius-ctl); }
+.view-tabs__switch button { height: 26px; padding: 0 13px; border-radius: 7px; font-size: 12px; color: var(--fg-muted); transition: all var(--ease); display: inline-flex; align-items: center; gap: 5px; }
+.view-tabs__switch button.on { background: var(--bg-card); color: var(--fg); font-weight: 500; box-shadow: 0 1px 3px rgba(16,16,20,.1); }
+.view-tabs__hint { font-size: 11px; color: var(--fg-muted); display: inline-flex; align-items: center; gap: 5px; }
+.view-tabs__right { margin-left: auto; display: flex; gap: 8px; }
+
+/* 文件页签（多文件资产） */
+.file-tabs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 10px; }
+.file-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 27px; padding: 0 11px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg-card);
+  font-size: 11.5px; font-family: var(--font-mono); color: var(--fg-sub);
+  transition: all var(--ease);
+}
+.file-tab:hover { border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
+.file-tab.on { border-color: color-mix(in srgb, var(--primary) 55%, transparent); background: color-mix(in srgb, var(--primary) 7%, transparent); color: var(--primary); font-weight: 600; }
+.file-tab .entry-mark { font-size: 9px; border-radius: 4px; padding: 0 4px; line-height: 1.5; background: color-mix(in srgb, var(--sev-low) 15%, transparent); color: var(--sev-low); }
+
+/* 代码块 */
+.code-block {
+  background: var(--code-bg); border: 1px solid var(--code-border);
+  border-radius: 12px; overflow: auto; max-height: 540px;
+}
+.code-block pre { padding: 13px 15px; font-family: var(--font-mono); font-size: 12px; line-height: 1.75; color: var(--fg); }
+.tk-kw { color: var(--tk-kw); } .tk-str { color: var(--tk-str); } .tk-com { color: var(--tk-com); font-style: italic; }
+.tk-num { color: var(--tk-num); } .tk-tag { color: var(--tk-tag); } .tk-fn { color: var(--tk-fn); }
+
+/* 依赖区 */
+.deps { margin-top: 14px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.deps__head { display: flex; align-items: center; gap: 8px; padding: 9px 13px; background: var(--bg-input); font-size: 12px; font-weight: 500; cursor: pointer; user-select: none; }
+.deps__head .cnt { font-size: 10.5px; color: var(--fg-muted); font-weight: 400; }
+.deps__head .arrow { margin-left: auto; color: var(--fg-muted); transition: transform var(--ease); }
+.deps.open .arrow { transform: rotate(180deg); }
+.deps__body { display: none; padding: 4px 13px 12px; }
+.deps.open .deps__body { display: block; }
+.dep-row { display: flex; align-items: center; gap: 9px; padding: 7px 0; border-bottom: 1px dashed var(--border); font-size: 12px; }
+.dep-row:last-child { border-bottom: none; }
+.dep-name { font-family: var(--font-mono); font-weight: 600; }
+.dep-ver { font-family: var(--font-mono); font-size: 11px; color: var(--fg-muted); }
+.dep-url { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46%; }
+.src-pill { font-size: 9.5px; border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+.src-pill--bundled { background: color-mix(in srgb, var(--sev-low) 13%, transparent); color: var(--sev-low); }
+.src-pill--cdn { background: color-mix(in srgb, #1668dc 12%, transparent); color: #1668dc; }
+html[data-theme='dark'] .src-pill--cdn { color: #6cb6ff; }
+.deps__note { margin-top: 9px; font-size: 11px; color: var(--fg-muted); line-height: 1.7; }
+
+/* import map 查看器 */
+.immap { margin-top: 10px; border: 1px dashed var(--border-strong); border-radius: 10px; background: var(--code-bg); display: none; }
+.immap.show { display: block; }
+.immap pre { padding: 11px 13px; font-family: var(--font-mono); font-size: 11px; line-height: 1.7; color: var(--fg-sub); }
+
+/* ---- 预览沙箱（@vue/repl 视觉） ---- */
+.preview-shell { border: 1px solid var(--code-border); border-radius: 12px; overflow: hidden; background: var(--bg-card); }
+.preview__bar {
+  display: flex; align-items: center; gap: 8px;
+  height: 34px; padding: 0 12px;
+  background: var(--bg-terminal); color: #8b949e;
+  font-size: 11px; font-family: var(--font-mono);
+}
+.traffic { display: flex; gap: 5px; }
+.traffic i { width: 9px; height: 9px; border-radius: 50%; }
+.traffic i:nth-child(1) { background: #ff5f57; } .traffic i:nth-child(2) { background: #febc2e; } .traffic i:nth-child(3) { background: #28c840; }
+.preview__addr {
+  flex: 1; height: 21px; border-radius: 6px; background: rgba(255,255,255,.08);
+  display: flex; align-items: center; padding: 0 9px; font-size: 10.5px; color: #a7adc0;
+  white-space: nowrap; overflow: hidden;
+}
+.preview__badge { color: #4ade80; display: inline-flex; align-items: center; gap: 5px; }
+.blink { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: blink 1.6s infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+.preview__stage { padding: 16px; min-height: 300px; }
+.preview__loading { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 60px 0; color: var(--fg-muted); font-size: 12px; }
+.spinner { width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid var(--border); border-top-color: var(--primary); animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 沙箱里渲染出来的"组件效果"（antd 风格仿制） */
+.demo-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+.demo-toolbar .field { flex: 1; max-width: 240px; }
+.demo-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.demo-table th { text-align: left; padding: 8px 10px; background: var(--bg-input); color: var(--fg-sub); font-weight: 600; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.demo-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--fg-sub); }
+.demo-table tr:hover td { background: color-mix(in srgb, var(--primary) 4%, transparent); }
+.demo-table .mono { font-family: var(--font-mono); font-size: 11.5px; }
+.sev { font-size: 10.5px; border-radius: 4px; padding: 1px 7px; white-space: nowrap; }
+.sev--critical { color: var(--sev-critical); background: color-mix(in srgb, var(--sev-critical) 11%, transparent); }
+.sev--high { color: var(--sev-high); background: color-mix(in srgb, var(--sev-high) 11%, transparent); }
+.sev--medium { color: var(--sev-medium); background: color-mix(in srgb, var(--sev-medium) 12%, transparent); }
+.sev--low { color: var(--sev-low); background: color-mix(in srgb, var(--sev-low) 12%, transparent); }
+
+/* function 类资产的交互式预览 */
+.demo-run { display: flex; flex-direction: column; gap: 10px; }
+.demo-run textarea {
+  width: 100%; min-height: 74px; resize: vertical;
+  border-radius: var(--radius-ctl); border: 1px solid var(--border);
+  background: var(--code-bg); padding: 10px 12px;
+  font-family: var(--font-mono); font-size: 11.5px; line-height: 1.7; color: var(--fg);
+}
+.demo-run__out {
+  border-radius: var(--radius-ctl); background: var(--bg-terminal);
+  padding: 11px 13px; font-family: var(--font-mono); font-size: 11.5px; line-height: 1.8;
+  color: #a5d6ff; white-space: pre-wrap; word-break: break-all;
+}
+
+/* 链接卡片 */
+.link-card {
+  display: flex; align-items: center; gap: 12px;
+  border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
+  transition: all var(--ease);
+}
+.link-card:hover { border-color: color-mix(in srgb, var(--primary) 40%, transparent); box-shadow: var(--shadow-card); }
+.link-card__icon { width: 36px; height: 36px; border-radius: 10px; background: color-mix(in srgb, var(--primary) 9%, transparent); color: var(--primary); display: grid; place-items: center; flex: none; }
+.link-card__url { margin-top: 3px; font-family: var(--font-mono); font-size: 12px; color: var(--primary); word-break: break-all; }
+.link-card__host { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+
+/* ---- 新建 / 编辑抽屉 ---- */
+.mask { position: fixed; inset: 0; background: rgba(10, 10, 14, .4); opacity: 0; pointer-events: none; transition: opacity var(--ease); z-index: 40; }
+.mask.show { opacity: 1; pointer-events: auto; }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 520px; max-width: 94vw;
+  background: color-mix(in srgb, var(--bg-card) 96%, transparent); backdrop-filter: blur(10px);
+  border-left: 1px solid var(--border); box-shadow: var(--shadow-float);
+  transform: translateX(102%); transition: transform var(--ease); z-index: 41;
+  display: flex; flex-direction: column;
+}
+.drawer.show { transform: translateX(0); }
+.drawer__head { display: flex; align-items: center; justify-content: space-between; padding: 15px 18px; border-bottom: 1px solid var(--border); }
+.drawer__head h3 { font-size: 14px; font-weight: 600; }
+.drawer__body { flex: 1; overflow-y: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 13px; }
+.drawer__foot { display: flex; justify-content: flex-end; gap: 8px; padding: 13px 18px; border-top: 1px solid var(--border); }
+.form-row { display: flex; flex-direction: column; gap: 5px; }
+.form-row label { font-size: 12px; color: var(--fg-sub); font-weight: 500; }
+.form-row label .req { color: var(--sev-critical); margin-left: 2px; }
+.form-row input, .form-row textarea, .form-row select { border: 1px solid var(--border); background: var(--bg-input); border-radius: var(--radius-ctl); padding: 7px 10px; font-size: 12.5px; transition: all var(--ease); }
+.form-row textarea { resize: vertical; min-height: 54px; line-height: 1.6; }
+.form-row input:focus, .form-row textarea:focus, .form-row select:focus { background: var(--bg-card); border-color: color-mix(in srgb, var(--primary) 50%, transparent); }
+.form-hint { font-size: 11px; color: var(--fg-muted); }
+.form-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* 抽屉里的文件编辑区 */
+.edit-files { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.edit-files__tabs { display: flex; align-items: center; gap: 4px; padding: 7px 8px; background: var(--bg-input); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.edit-files__tabs .file-tab { background: var(--bg-card); height: 25px; font-size: 11px; }
+.edit-files__tabs .file-tab .close { color: var(--fg-muted); display: grid; place-items: center; border-radius: 4px; }
+.edit-files__tabs .file-tab .close:hover { color: var(--sev-critical); }
+.edit-files__add { height: 25px; padding: 0 9px; border-radius: 7px; border: 1px dashed var(--border-strong); font-size: 11px; color: var(--fg-muted); }
+.edit-files__add:hover { color: var(--primary); border-color: color-mix(in srgb, var(--primary) 40%, transparent); }
+.edit-files textarea {
+  width: 100%; min-height: 260px; border: none; display: block;
+  background: var(--code-bg); padding: 12px 14px;
+  font-family: var(--font-mono); font-size: 11.5px; line-height: 1.75; color: var(--fg); resize: vertical;
+}
+.edit-files__meta { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 11px; color: var(--fg-muted); border-top: 1px solid var(--border); }
+.edit-files__meta input { width: 110px; border: 1px solid var(--border); background: var(--bg-input); border-radius: 6px; padding: 2px 7px; font-size: 11px; font-family: var(--font-mono); }
+.entry-check { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; margin-left: auto; user-select: none; }
+
+/* 抽屉里的依赖区（自动扫描） */
+.scan-box { border: 1px solid var(--border); border-radius: 12px; padding: 11px 12px; display: flex; flex-direction: column; gap: 9px; }
+.scan-box__top { display: flex; align-items: center; gap: 9px; }
+.scan-box__top .t { font-size: 12px; font-weight: 500; }
+.scan-result { font-size: 11.5px; color: var(--fg-muted); display: flex; align-items: center; gap: 6px; min-height: 18px; }
+.scan-result.ok { color: var(--sev-low); }
+.dep-edit-row { display: flex; align-items: center; gap: 7px; }
+.dep-edit-row .name { font-family: var(--font-mono); font-size: 12px; font-weight: 600; min-width: 150px; }
+.dep-edit-row input { width: 90px; border: 1px solid var(--border); background: var(--bg-input); border-radius: 6px; padding: 3px 7px; font-size: 11px; font-family: var(--font-mono); }
+.dep-edit-row select { border: 1px solid var(--border); background: var(--bg-input); border-radius: 6px; padding: 3px 5px; font-size: 11px; }
+.dep-edit-row .rm { margin-left: auto; color: var(--fg-muted); }
+.dep-edit-row .rm:hover { color: var(--sev-critical); }
+
+/* toast */
+.toast {
+  position: fixed; left: 50%; bottom: 34px; transform: translate(-50%, 16px);
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow-float);
+  padding: 9px 16px; font-size: 12.5px; color: var(--fg);
+  opacity: 0; pointer-events: none; transition: all var(--ease); z-index: 60;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast svg { color: var(--sev-low); }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 简化基座侧栏：只表达"资产仓库在平台里的位置" -->
+  <aside class="side">
+    <div class="side__brand"><span class="brand-mark">Æ</span>Aegis</div>
+    <div class="side__group">常用</div>
+    <button class="side__item" data-icon="grid">工作台</button>
+    <div class="side__group">SOC 工具集</div>
+    <button class="side__item" data-icon="send">Syslog 发包器</button>
+    <button class="side__item stub">日志解析器<span class="stub-tag">建设中</span></button>
+    <button class="side__item stub">告警样本工场<span class="stub-tag">建设中</span></button>
+    <div class="side__group">知识资产</div>
+    <button class="side__item active" data-icon="box">资产仓库</button>
+    <button class="side__item stub">漏洞知识库<span class="stub-tag">建设中</span></button>
+    <button class="side__item stub">Playbook 库<span class="stub-tag">建设中</span></button>
+    <div class="side__group">智能</div>
+    <button class="side__item stub">AI 工作台<span class="stub-tag">建设中</span></button>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <span class="topbar__title">资产仓库</span>
+      <span class="topbar__spacer"></span>
+      <button class="icon-btn" id="themeBtn" title="切换明暗主题"></button>
+      <div class="topbar__user"><span class="avatar">卓</span>崔卓</div>
+    </header>
+
+    <div class="repo">
+      <header class="repo__head">
+        <div>
+          <h1>资产仓库 <span class="mode-badge">数据源 · 模拟</span></h1>
+          <p>个人可复用资产中心：片段 / 组件 / 函数 / 文档 / 链接五类共库，多文件入库、在线预览、按使用频率排序。</p>
+        </div>
+        <div class="head-actions">
+          <button class="btn" id="refreshBtn">刷新</button>
+          <button class="btn btn--primary" id="createBtn">＋ 新建资产</button>
+        </div>
+      </header>
+
+      <div class="repo__toolbar">
+        <div class="kw-input">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input class="field" id="kwInput" style="width:100%" placeholder="搜索名称 / 说明 / 内容…">
+        </div>
+        <div class="segmented" id="typeSeg"></div>
+        <select class="field tag-select" id="tagSel"></select>
+      </div>
+
+      <div class="repo__body">
+        <aside class="repo__list" id="list"></aside>
+        <section class="repo__detail" id="detail"></section>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="mask"></div>
+<div class="drawer" id="drawer"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   演示数据：与真实平台 mock 种子同风格 + 完全体新增字段
+   files[]（多文件）/ entry（预览入口）/ deps[]（依赖声明）
+   ============================================================ */
+const ITEMS = [
+  {
+    id: '1', name: 'ProSearchTable 检索表格', type: 'component', lang: 'vue',
+    description: '带检索栏与分页的表格封装：fetch 逻辑进 composable，组件只管渲染；接入 antd 表格的项目级标准用法。4 文件入库，demo.vue 可在线预览。',
+    tags: ['vue', 'antd', '封装', '表格'], copyCount: 34, updateTime: '2026-09-01 21:14',
+    entry: 'demo.vue', previewable: true,
+    deps: [
+      { name: 'vue', version: '3.5.13', source: 'bundled' },
+      { name: 'ant-design-vue', version: '4.2.6', source: 'bundled' },
+      { name: '@ant-design/icons-vue', version: '7.0.1', source: 'bundled' },
+      { name: 'lodash-es', version: '4.17.21', source: 'cdn' },
+    ],
+    files: [
+      { name: 'index.vue', lang: 'vue', code:
+`<script setup lang="ts">
+import { useProTable } from './useProTable'
+import type { SearchTableProps } from './types'
+
+const props = defineProps<SearchTableProps>()
+
+// 检索/分页/loading 全部收进 composable，组件零业务状态
+const { loading, dataSource, pagination, run } = useProTable(props.fetch, {
+  defaultPage: 1,
+  pageSize: 20,
+})
+
+function onSearch() {
+  run({ page: 1 })
+}
+<\/script>
+
+<template>
+  <section class="pro-search-table">
+    <slot name="filter" :search="onSearch" />
+    <a-table
+      :loading="loading"
+      :columns="props.columns"
+      :data-source="dataSource"
+      :pagination="pagination"
+      row-key="id"
+      @change="run"
+    />
+  </section>
+</template>` },
+      { name: 'useProTable.ts', lang: 'ts', code:
+`import { reactive, ref } from 'vue'
+import { debounce } from 'lodash-es'
+import type { FetchFn, ProTableState } from './types'
+
+export function useProTable(fetch: FetchFn, options = {}) {
+  const loading = ref(false)
+  const state = reactive<ProTableState>({ page: 1, pageSize: 20, total: 0 })
+  const dataSource = ref<Record<string, unknown>[]>([])
+
+  async function run(next = {}) {
+    loading.value = true
+    try {
+      const { items, total } = await fetch({ ...state, ...next })
+      dataSource.value = items
+      state.total = total
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // 检索请求防抖 300ms，避免连打关键字打爆接口
+  const search = debounce(run, 300)
+  return { loading, dataSource, pagination: state, run, search }
+}` },
+      { name: 'types.ts', lang: 'ts', code:
+`import type { TableColumnProps } from 'ant-design-vue'
+
+export interface PageQuery {
+  page: number
+  pageSize: number
+  kw?: string
+}
+
+export interface PageResult<T> {
+  items: T[]
+  total: number
+}
+
+export interface SearchTableProps {
+  columns: TableColumnProps[]
+  fetch: (q: PageQuery) => Promise<PageResult<Record<string, unknown>>>
+}` },
+      { name: 'demo.vue', lang: 'vue', code:
+`<script setup lang="ts">
+// 示例文件：预览入口。真实数据 + 模拟 fetch，所见即所得
+import ProSearchTable from './index.vue'
+import { columns, mockFetch } from './mock'
+
+const fetch = (q) => mockFetch(q)
+<\/script>
+
+<template>
+  <ProSearchTable :columns="columns" :fetch="fetch">
+    <template #filter>
+      <a-input-search placeholder="按源 IP / 告警类型检索" @search="fetch" />
+    </template>
+  </ProSearchTable>
+</template>` },
+    ],
+  },
+  {
+    id: '2', name: 'extractAlertFields 告警字段提取', type: 'function', lang: 'ts',
+    description: '从 syslog / CEF 原文里提取 src、dst、端口、等级等关键字段，返回结构化对象；值班时快速取字段不用肉眼扫日志。右侧预览可直接粘贴日志实测。',
+    tags: ['soc', '正则', '工具'], copyCount: 21, updateTime: '2026-08-29 10:02',
+    entry: 'demo.vue', previewable: true,
+    deps: [{ name: 'vue', version: '3.5.13', source: 'bundled' }],
+    files: [
+      { name: 'index.ts', lang: 'ts', code:
+`/** 从告警原文提取结构化字段：优先 CEF 扩展键，退化到 LEEF/键值对 */
+export function extractAlertFields(raw: string) {
+  const pick = (key: string) => raw.match(new RegExp(key + '=([^\\s]+)'))?.[1]
+
+  return {
+    src: pick('src') ?? null,
+    dst: pick('dst') ?? null,
+    port: Number(pick('spt') ?? 0),
+    severity: pick('severity') ?? inferByKeyword(raw),
+    raw: raw.length > 512 ? raw.slice(0, 512) + '…' : raw,
+  }
+}
+
+function inferByKeyword(raw: string): string {
+  if (/flood|scan|brute/i.test(raw)) return 'high'
+  if (/policy|violation/i.test(raw)) return 'medium'
+  return 'low'
+}` },
+      { name: 'demo.vue', lang: 'vue', code:
+`<script setup lang="ts">
+import { ref } from 'vue'
+import { extractAlertFields } from './index'
+
+const raw = ref('<134>1 2026-09-02T14:03:11.284Z SIEM-01 CEF - src=10.1.1.5 dst=192.168.30.7 spt=445 rule="LNK flood"')
+const result = computed(() => extractAlertFields(raw.value))
+<\/script>
+
+<template>
+  <a-textarea v-model:value="raw" :rows="3" />
+  <pre class="out">{{ JSON.stringify(result, null, 2) }}</pre>
+</template>` },
+    ],
+  },
+  {
+    id: '3', name: 'useDebounceFn', type: 'snippet', lang: 'ts',
+    description: '通用防抖 composable：立即执行首调用，尾部触发合并；表格检索、窗口 resize 场景直接贴走。',
+    tags: ['vue', 'composable'], copyCount: 12, updateTime: '2026-08-25 19:40',
+    files: [
+      { name: 'useDebounceFn.ts', lang: 'ts', code:
+`import { onUnmounted } from 'vue'
+
+export function useDebounceFn<T extends (...args: any[]) => void>(fn: T, delay = 300) {
+  let timer: ReturnType<typeof setTimeout> | null = null
+
+  const run = (...args: Parameters<T>) => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => fn(...args), delay)
+  }
+
+  // 组件卸载顺手清掉定时器，避免内存里挂着幽灵回调
+  onUnmounted(() => timer && clearTimeout(timer))
+  return run
+}` },
+    ],
+  },
+  {
+    id: '4', name: 'Result 统一返回包装', type: 'component', lang: 'java',
+    description: 'Spring Boot 统一响应体：code / message / data 三段式，静态工厂 ok / fail 直出；配合全局异常处理器使用。Java 资产暂不支持在线预览。',
+    tags: ['java', 'spring'], copyCount: 8, updateTime: '2026-08-20 11:26',
+    files: [
+      { name: 'Result.java', lang: 'java', code:
+`public class Result<T> {
+
+    private String code;
+    private String message;
+    private T data;
+
+    public static <T> Result<T> ok(T data) {
+        Result<T> r = new Result<>();
+        r.code = "00000";
+        r.message = "success";
+        r.data = data;
+        return r;
+    }
+
+    public static <T> Result<T> fail(String code, String message) {
+        Result<T> r = new Result<>();
+        r.code = code;
+        r.message = message;
+        return r;
+    }
+}` },
+    ],
+  },
+  {
+    id: '5', name: 'grep 应急速查', type: 'doc', lang: 'md',
+    description: '凌晨处置时 3 秒翻出来的 grep 组合拳：按场景索引，从百万行日志里圈人、圈 IP、圈时间窗。',
+    tags: ['bash', 'soc'], copyCount: 7, updateTime: '2026-08-18 09:12',
+    files: [
+      { name: 'grep-cheatsheet.md', lang: 'md', code:
+`# grep 应急速查
+
+## 圈出某 IP 的全部行为（含上下文）
+\`\`\`bash
+grep -C 3 '10.1.1.5' /var/log/secure
+\`\`\`
+
+## 时间窗内的高频源 IP TOP20
+\`\`\`bash
+grep '02/Sep/2026:14:' access.log | awk '{print $1}' | sort | uniq -c | sort -rn | head -20
+\`\`\`
+
+## 只看失败登录（暴破研判）
+\`\`\`bash
+grep -i 'failed password' /var/log/secure | grep -v 'invalid user'
+\`\`\`` },
+    ],
+  },
+  {
+    id: '6', name: 'MITRE ATT&CK 官网', type: 'link', lang: null,
+    description: '攻击技战术知识库官方站：研判时查 TID、看检测建议的第一入口。',
+    tags: ['threatintel'], copyCount: 5, updateTime: '2026-08-15 16:33',
+    url: 'https://attack.mitre.org/',
+  },
+]
+
+/* ============ 状态与常量 ============ */
+const state = {
+  kw: '', type: '', tag: '', selectedId: '1',
+  view: 'code',            // 详情当前视图：code | preview
+  fileIdx: 0,              // 当前展示的文件下标
+  theme: 'light',
+  depsOpen: false, immapOpen: false,
+  previewLoaded: {},       // 沙箱加载动画只演一次
+}
+
+const TYPE_META = {
+  snippet:    { label: '片段', icon: 'code',     hue: '#1668dc' },
+  component:  { label: '组件', icon: 'box',      hue: '#722ed1' },
+  function:   { label: '函数', icon: 'terminal', hue: '#0e9488' },
+  doc:        { label: '文档', icon: 'fileText', hue: '#d46b08' },
+  link:       { label: '链接', icon: 'link',     hue: '#389e0d' },
+}
+
+const ICONS = {
+  code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+  box: '<path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+  terminal: '<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>',
+  fileText: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  edit: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  external: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
+  play: '<polygon points="5 3 19 12 5 21 5 3"/>',
+  package: '<path d="M16.5 9.4 7.55 4.24"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+  map: '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>',
+  chevDown: '<polyline points="6 9 12 15 18 9"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.66 1.66"/>',
+  folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  grid: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
+  send: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>',
+}
+
+function icon(name, size = 13) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ''}</svg>`
+}
+
+/* ============ 极简语法高亮（原型演示用，真实实现为 Shiki） ============ */
+const KEYWORDS = {
+  ts: 'import|from|export|const|let|var|function|return|if|else|new|class|extends|type|interface|await|async|try|finally|catch|typeof|null|undefined|default|as|reactive|ref|computed',
+  vue: 'import|from|export|const|let|function|return|defineProps|defineEmits|template|script|setup|lang|onUnmounted|computed|ref',
+  java: 'public|class|static|return|private|new|final|extends|implements|void|String',
+  md: '',
+}
+function esc(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+function highlight(code, lang) {
+  // 顺序扫描：注释 → 字符串 → 关键字 → 数字，未命中部分原样转义
+  const kw = KEYWORDS[lang] ?? KEYWORDS.ts
+  const re = new RegExp(
+    `(\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/|#[^\\n]*)` +
+    `|('(?:[^'\\\\\\n]|\\\\.)*'|"(?:[^"\\\\\\n]|\\\\.)*"|\\\`(?:[^\\\`\\\\]|\\\\.)*\\\`)` +
+    (kw ? `|\\b(${kw})\\b` : '') +
+    `|(\\b\\d+(?:\\.\\d+)?\\b)`, 'g')
+  let out = '', last = 0, m
+  while ((m = re.exec(code))) {
+    out += esc(code.slice(last, m.index))
+    const cls = m[1] ? 'tk-com' : m[2] ? 'tk-str' : m[3] ? 'tk-kw' : 'tk-num'
+    out += `<span class="${cls}">${esc(m[0])}</span>`
+    last = m.index + m[0].length
+  }
+  return out + esc(code.slice(last))
+}
+
+/* ============ 渲染：工具栏 / 列表 / 详情 ============ */
+const $ = (sel) => document.querySelector(sel)
+const listEl = $('#list'), detailEl = $('#detail')
+
+function filtered() {
+  return ITEMS
+    .filter(it => !state.type || it.type === state.type)
+    .filter(it => !state.tag || it.tags.includes(state.tag))
+    .filter(it => {
+      if (!state.kw) return true
+      const kw = state.kw.toLowerCase()
+      return it.name.toLowerCase().includes(kw)
+        || (it.description || '').toLowerCase().includes(kw)
+        || (it.files || []).some(f => f.code.toLowerCase().includes(kw))
+    })
+    .sort((a, b) => b.copyCount - a.copyCount)  // 使用频率排序是产品主张，不能按时间
+}
+function current() {
+  return ITEMS.find(it => it.id === state.selectedId)
+}
+function allTags() {
+  return [...new Set(ITEMS.flatMap(it => it.tags))].sort()
+}
+
+function renderToolbar() {
+  const seg = $('#typeSeg')
+  seg.innerHTML = [['', '全部'], ...Object.entries(TYPE_META).map(([k, v]) => [k, v.label])]
+    .map(([v, label]) => `<button data-type="${v}" class="${state.type === v ? 'on' : ''}">${label}</button>`)
+    .join('')
+  const sel = $('#tagSel')
+  sel.innerHTML = `<option value="">全部标签</option>` +
+    allTags().map(t => `<option value="${t}" ${state.tag === t ? 'selected' : ''}>#${t}</option>`).join('')
+}
+
+function renderList() {
+  const rows = filtered()
+  if (!rows.length) {
+    listEl.innerHTML = `<div class="list-empty">
+      <div class="big">🗂</div>没有匹配的资产
+      <div class="hint">换个关键字，或清掉类型 / 标签筛选</div></div>`
+    return
+  }
+  if (!rows.some(it => it.id === state.selectedId)) {
+    state.selectedId = rows[0].id
+    state.fileIdx = 0
+    state.view = 'code'
+  }
+  listEl.innerHTML = rows.map(it => {
+    const meta = TYPE_META[it.type]
+    const multi = (it.files?.length || 0) > 1
+    return `<button class="item ${it.id === state.selectedId ? 'active' : ''}" data-id="${it.id}">
+      <div class="item__top">
+        <span style="color:${meta.hue}">${icon(meta.icon)}</span>
+        <span class="item__name">${esc(it.name)}</span>
+        ${multi ? `<span class="item__files">${it.files.length} 文件</span>` : ''}
+        <span class="item__count">${icon('copy', 10)}${it.copyCount}</span>
+      </div>
+      <div class="item__meta">
+        ${it.lang ? `<span class="item__lang">${it.lang}</span>` : ''}
+        ${it.tags.map(t => `<span class="item__tag" data-tag="${t}">#${t}</span>`).join('')}
+      </div>
+    </button>`
+  }).join('')
+}
+
+/* 依赖解析地址：同源预打包 vs 公网 CDN（两层结构的落点） */
+function depUrl(dep) {
+  return dep.source === 'bundled'
+    ? `/child/asset-repo/repl-deps/${dep.name.replace('/', '-')}@${dep.version}.esm.js`
+    : `https://esm.sh/${dep.name}@${dep.version}`
+}
+function importMapOf(item) {
+  const maps = {}
+  ;(item.deps || []).forEach(d => { maps[d.name] = depUrl(d) })
+  return JSON.stringify({ imports: maps }, null, 2)
+}
+
+/* 预览沙箱里"渲染出来"的组件效果（原型伪造，真实实现为 @vue/repl iframe） */
+const PREVIEW_ROWS = [
+  { time: '14:03:11', src: '10.1.1.5', dst: '192.168.30.7', type: 'LNK 泛洪', sev: 'critical', sevLabel: '严重' },
+  { time: '14:02:47', src: '172.16.8.23', dst: '10.2.0.9', type: 'SSH 暴力破解', sev: 'high', sevLabel: '高危' },
+  { time: '14:01:58', src: '192.168.4.71', dst: '172.16.8.23', type: '策略违规访问', sev: 'medium', sevLabel: '中危' },
+  { time: '13:59:30', src: '10.2.0.9', dst: '192.168.4.71', type: '心跳失联', sev: 'low', sevLabel: '低危' },
+]
+function previewStageHtml(item) {
+  if (item.id === '2') {
+    // function 类：可交互实测——输入日志原文，现场跑提取逻辑
+    return `<div class="demo-run">
+      <div style="font-size:11.5px;color:var(--fg-muted)">粘贴告警原文，提取器现场运行：</div>
+      <textarea id="pvInput"><134>1 2026-09-02T14:03:11.284Z SIEM-01 CEF - src=10.1.1.5 dst=192.168.30.7 spt=445 severity=high rule="LNK flood"</textarea>
+      <div class="demo-run__out" id="pvOut"></div>
+    </div>`
+  }
+  const rows = PREVIEW_ROWS
+  return `<div class="demo-toolbar">
+      <input class="field" id="pvKw" placeholder="按源 IP / 告警类型检索…">
+      <button class="btn btn--primary btn--sm" id="pvSearch">查 询</button>
+    </div>
+    <table class="demo-table">
+      <thead><tr><th>时间</th><th>源 IP</th><th>目的 IP</th><th>告警类型</th><th>等级</th><th>状态</th></tr></thead>
+      <tbody id="pvBody"></tbody>
+    </table>
+    <div style="margin-top:10px;font-size:11px;color:var(--fg-muted)">共 ${rows.length} 条 · 第 1/3 页 · 20 条/页</div>`
+}
+
+function bindPreviewInteractions(item) {
+  if (item.id === '2') {
+    const input = $('#pvInput'), out = $('#pvOut')
+    const run = () => {
+      try {
+        const pick = (k) => input.value.match(new RegExp(k + '=([^\\s"]+)'))?.[1] ?? null
+        out.textContent = JSON.stringify({
+          src: pick('src'), dst: pick('dst'), port: Number(pick('spt') ?? 0),
+          severity: pick('severity') ?? (/flood|scan|brute/i.test(input.value) ? 'high' : 'low'),
+        }, null, 2)
+      } catch (e) { out.textContent = '解析失败：' + e.message }
+    }
+    input.addEventListener('input', run)
+    run()
+    return
+  }
+  const render = (kw) => {
+    const rows = PREVIEW_ROWS.filter(r => !kw || r.src.includes(kw) || r.type.includes(kw))
+    $('#pvBody').innerHTML = rows.map(r => `<tr>
+      <td class="mono">${r.time}</td><td class="mono">${r.src}</td><td class="mono">${r.dst}</td>
+      <td>${r.type}</td><td><span class="sev sev--${r.sev}">${r.sevLabel}</span></td>
+      <td style="color:var(--fg-muted)">已研判</td></tr>`).join('')
+      || `<tr><td colspan="6" style="text-align:center;padding:26px;color:var(--fg-muted)">无匹配数据</td></tr>`
+  }
+  $('#pvSearch').addEventListener('click', () => render($('#pvKw').value.trim()))
+  $('#pvKw').addEventListener('input', (e) => render(e.target.value.trim()))
+  render('')
+}
+
+function renderDetail() {
+  const it = current()
+  if (!it) { detailEl.innerHTML = ''; return }
+  const meta = TYPE_META[it.type]
+
+  // ---- 链接类：独占卡片形态 ----
+  if (it.type === 'link') {
+    const host = it.url.replace(/^https?:\/\//, '').split('/')[0]
+    detailEl.innerHTML = `
+      <div class="detail__head">
+        <div class="detail__title">
+          <div class="detail__title-row">
+            <span class="type-badge" style="background:${meta.hue}">${meta.label}</span>
+            <span class="detail__name">${esc(it.name)}</span>
+          </div>
+          <p class="detail__desc">${esc(it.description)}</p>
+        </div>
+        <div class="detail__actions">
+          <button class="btn" data-act="copy">${icon('copy', 12)} 复制 URL</button>
+          <a class="btn btn--primary" href="${it.url}" target="_blank" rel="noopener noreferrer" style="text-decoration:none">${icon('external', 12)} 打开</a>
+        </div>
+      </div>
+      <div class="detail__meta">
+        <span>${icon('link', 11)} 链接剪藏</span><span class="meta-dot">·</span>
+        <span>复制 ${it.copyCount} 次</span><span class="meta-dot">·</span><span>更新于 ${it.updateTime}</span>
+      </div>
+      <div class="link-card" style="margin-top:14px">
+        <span class="link-card__icon">${icon('external', 16)}</span>
+        <div style="min-width:0">
+          <div style="font-weight:600;font-size:13px">${esc(it.name)}</div>
+          <div class="link-card__url">${it.url}</div>
+          <div class="link-card__host">${host}</div>
+        </div>
+      </div>`
+    return
+  }
+
+  // ---- 代码 / 文档 / 可预览资产 ----
+  const files = it.files || []
+  const file = files[Math.min(state.fileIdx, files.length - 1)]
+  const canPreview = it.previewable
+  const depsHtml = (it.deps || []).map(d => `
+    <div class="dep-row">
+      <span class="dep-name">${esc(d.name)}</span>
+      <span class="dep-ver">@${d.version}</span>
+      <span class="src-pill src-pill--${d.source}" title="${d.source === 'bundled' ? '已随平台预打包，同源加载，内网可用' : '运行时从公网 esm.sh 解析，需出网'}">${d.source === 'bundled' ? '同源预打包' : 'CDN'}</span>
+      <span class="dep-url" title="${depUrl(d)}">${depUrl(d)}</span>
+    </div>`).join('')
+
+  detailEl.innerHTML = `
+    <div class="detail__head">
+      <div class="detail__title">
+        <div class="detail__title-row">
+          <span class="type-badge" style="background:${meta.hue}">${meta.label}</span>
+          <span class="detail__name">${esc(it.name)}</span>
+          ${it.lang ? `<span class="lang-chip">${it.lang}</span>` : ''}
+          ${canPreview ? `<span class="lang-chip" style="color:var(--sev-low);border-color:color-mix(in srgb,var(--sev-low) 40%,transparent)">可预览</span>` : ''}
+        </div>
+        <p class="detail__desc">${esc(it.description)}</p>
+      </div>
+      <div class="detail__actions">
+        <button class="btn" data-act="copy">${icon('copy', 12)} ${it.type === 'doc' ? '复制全文' : '复制此文件'}</button>
+        <button class="btn" data-act="edit">${icon('edit', 12)} 编辑</button>
+        <button class="btn btn--danger" data-act="del">${icon('trash', 12)}</button>
+      </div>
+    </div>
+    <div class="detail__meta">
+      <span>复制 ${it.copyCount} 次</span><span class="meta-dot">·</span>
+      <span>更新于 ${it.updateTime}</span><span class="meta-dot">·</span>
+      ${it.tags.map(t => `<span class="meta-tag" data-tag="${t}">#${t}</span>`).join('<span class="meta-dot">·</span>')}
+    </div>
+
+    ${canPreview ? `
+    <div class="view-tabs">
+      <div class="view-tabs__switch">
+        <button data-view="code" class="${state.view === 'code' ? 'on' : ''}">${icon('code', 11)} 代码</button>
+        <button data-view="preview" class="${state.view === 'preview' ? 'on' : ''}">${icon('play', 11)} 预览</button>
+      </div>
+      <span class="view-tabs__hint">${icon('folder', 11)} 入口 ${it.entry}</span>
+      <div class="view-tabs__right">
+        <button class="btn btn--sm" data-act="immap">${icon('map', 11)} import map</button>
+      </div>
+    </div>` : `
+    <div class="view-tabs">
+      <div class="view-tabs__switch"><button class="on">${icon('code', 11)} 代码</button></div>
+      <span class="view-tabs__hint">${icon('x', 11)} 非 Vue 资产暂不支持预览</span>
+    </div>`}
+
+    ${state.view === 'code' || !canPreview ? `
+    <div class="file-tabs">
+      ${files.map((f, i) => `
+        <button class="file-tab ${i === state.fileIdx ? 'on' : ''}" data-file="${i}">
+          ${esc(f.name)}
+          ${it.entry === f.name ? '<span class="entry-mark" title="预览入口文件">demo</span>' : ''}
+        </button>`).join('')}
+      <span style="margin-left:auto;font-size:11px;color:var(--fg-muted);font-family:var(--font-mono)">${file.code.split('\n').length} 行</span>
+    </div>
+    <div class="code-block"><pre>${highlight(file.code, file.lang)}</pre></div>` : `
+    <div class="preview-shell">
+      <div class="preview__bar">
+        <span class="traffic"><i></i><i></i><i></i></span>
+        <span class="preview__addr">sandbox://repl/${it.id}/${it.entry}</span>
+        <span class="preview__badge"><span class="blink"></span>沙箱运行中</span>
+      </div>
+      <div class="preview__stage" id="pvStage"></div>
+    </div>`}
+
+    ${it.deps?.length ? `
+    <div class="deps ${state.depsOpen ? 'open' : ''}">
+      <div class="deps__head" data-act="deps">
+        ${icon('package', 13)} 依赖声明 <span class="cnt">${it.deps.length} 个 · 版本已锁定</span>
+        <span class="arrow">${icon('chevDown', 13)}</span>
+      </div>
+      <div class="deps__body">
+        ${depsHtml}
+        <div class="immap ${state.immapOpen ? 'show' : ''}"><pre>${esc(importMapOf(it))}</pre></div>
+        <p class="deps__note">同源预打包依赖来自平台构建期 esbuild 产物（版本与 monorepo catalog 对齐），内网离线可用；CDN 依赖运行时从 esm.sh 按锁定版本解析。点上方「import map」查看最终注入沙箱的映射。</p>
+      </div>
+    </div>` : ''}
+  `
+
+  if (state.view === 'preview' && canPreview) {
+    const stage = $('#pvStage')
+    // 首次进入演一段"编译 + 装载依赖"的加载动画：repl 的真实体感
+    if (!state.previewLoaded[it.id]) {
+      stage.innerHTML = `<div class="preview__loading"><span class="spinner"></span>编译 demo.vue · 装载 ${it.deps.length} 个依赖…</div>`
+      setTimeout(() => {
+        state.previewLoaded[it.id] = true
+        if (state.view === 'preview' && current()?.id === it.id) renderDetail()
+      }, 700)
+    } else {
+      stage.innerHTML = previewStageHtml(it)
+      bindPreviewInteractions(it)
+    }
+  }
+}
+
+function renderAll() { renderToolbar(); renderList(); renderDetail() }
+
+/* ============ toast / 主题 / 抽屉 ============ */
+let toastTimer
+function toast(msg) {
+  const el = $('#toast')
+  el.innerHTML = `${icon('check', 13)} ${esc(msg)}`
+  el.classList.add('show')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200)
+}
+
+function applyTheme() {
+  document.documentElement.dataset.theme = state.theme
+  $('#themeBtn').innerHTML = icon(state.theme === 'light' ? 'moon' : 'sun', 14)
+}
+
+/* 新建/编辑抽屉：多文件编辑 + 依赖自动扫描的完全体形态 */
+const drawer = $('#drawer'), mask = $('#mask')
+let draft = null, draftFileIdx = 0, scanState = 'idle'  // idle | scanning | done
+
+function openDrawer(item) {
+  draft = item
+    ? JSON.parse(JSON.stringify({ ...item, files: item.files || [{ name: 'index.ts', lang: 'ts', code: '' }] }))
+    : { id: String(Date.now()), name: '', type: 'component', lang: 'vue', description: '', tags: [], files: [
+        { name: 'index.vue', lang: 'vue', code: '' },
+        { name: 'demo.vue', lang: 'vue', code: '' },
+      ], entry: 'demo.vue', deps: [], copyCount: 0, updateTime: '刚刚' }
+  draftFileIdx = 0
+  scanState = draft.deps.length ? 'done' : 'idle'
+  drawer.classList.add('show'); mask.classList.add('show')
+  renderDrawer()
+}
+function closeDrawer() { drawer.classList.remove('show'); mask.classList.remove('show') }
+
+/* 依赖自动扫描：从所有文件代码里提裸导入（去掉内部文件互相引用） */
+function scanDeps() {
+  const inner = new Set(draft.files.map(f => f.name.replace(/\.\w+$/, '')))
+  const found = new Map()
+  draft.files.forEach(f => {
+    const re = /(?:from\s+|import\s+)['"]([^'".][^'"]*)['"]/g
+    let m
+    while ((m = re.exec(f.code))) {
+      const spec = m[1]
+      // 相对路径是文件互引；scoped 包取前两段，裸包取第一段
+      if (inner.has(spec)) continue
+      const parts = spec.split('/')
+      const name = spec.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]
+      if (name !== 'vue') found.set(name, found.get(name) || { name, version: latestOf(name), source: knownBundled().includes(name) ? 'bundled' : 'cdn' })
+    }
+  })
+  return [...found.values()]
+}
+/* 平台预打包清单：构建期产物决定哪些依赖内网可用 */
+function knownBundled() { return ['vue', 'ant-design-vue', '@ant-design/icons-vue', 'dayjs'] }
+function latestOf(name) {
+  const preset = { 'ant-design-vue': '4.2.6', '@ant-design/icons-vue': '7.0.1', 'lodash-es': '4.17.21', dayjs: '1.11.13', vue: '3.5.13', axios: '1.7.9' }
+  return preset[name] || 'latest'
+}
+
+function renderDrawer() {
+  const editing = Boolean(draft.id && ITEMS.some(i => i.id === draft.id))
+  const file = draft.files[draftFileIdx]
+  drawer.innerHTML = `
+    <div class="drawer__head">
+      <h3>${editing ? '编辑资产' : '新建资产'}</h3>
+      <button class="icon-btn" id="dClose">${icon('x', 14)}</button>
+    </div>
+    <div class="drawer__body">
+      <div class="form-row">
+        <label>名称<span class="req">*</span></label>
+        <input id="dName" value="${esc(draft.name)}" placeholder="例：ProSearchTable 检索表格">
+      </div>
+      <div class="form-2col">
+        <div class="form-row">
+          <label>类型<span class="req">*</span></label>
+          <select id="dType">${Object.entries(TYPE_META).map(([k, v]) =>
+            `<option value="${k}" ${draft.type === k ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
+        </div>
+        <div class="form-row">
+          <label>语言</label>
+          <select id="dLang">${['vue', 'ts', 'js', 'java', 'python', 'go', 'sql', 'bash', 'md'].map(l =>
+            `<option ${draft.lang === l ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label>标签（逗号分隔，最多 8 个）</label>
+        <input id="dTags" value="${esc(draft.tags.join(', '))}" placeholder="vue, antd, 封装">
+      </div>
+      <div class="form-row">
+        <label>一句话说明</label>
+        <textarea id="dDesc" rows="2" placeholder="这个资产解决什么问题、什么时候用它">${esc(draft.description)}</textarea>
+      </div>
+
+      <div class="form-row">
+        <label>文件（多文件入库：一个资产 = 一组文件）</label>
+        <div class="edit-files">
+          <div class="edit-files__tabs">
+            ${draft.files.map((f, i) => `
+              <button class="file-tab ${i === draftFileIdx ? 'on' : ''}" data-dfile="${i}">
+                ${esc(f.name)}
+                ${draft.entry === f.name ? '<span class="entry-mark">demo</span>' : ''}
+                <span class="close" data-rmfile="${i}" title="移除文件">${icon('x', 9)}</span>
+              </button>`).join('')}
+            <button class="edit-files__add" id="dAddFile">＋ 文件</button>
+          </div>
+          <textarea id="dCode" spellcheck="false">${esc(file.code)}</textarea>
+          <div class="edit-files__meta">
+            <span>文件名</span><input id="dFileName" value="${esc(file.name)}">
+            <label class="entry-check"><input type="checkbox" id="dEntry" ${draft.entry === file.name ? 'checked' : ''}>设为预览入口</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label>依赖（保存前自动扫描，可手工修正版本与来源）</label>
+        <div class="scan-box">
+          <div class="scan-box__top">
+            <span class="t">外部依赖</span>
+            <button class="btn btn--sm" id="dScan">${icon('package', 11)} 扫描依赖</button>
+          </div>
+          <div class="scan-result ${scanState === 'done' ? 'ok' : ''}" id="dScanMsg">${
+            scanState === 'scanning' ? '<span class="spinner" style="width:12px;height:12px;border-width:2px"></span> 正在扫描代码里的 import…' :
+            scanState === 'done' ? `${icon('check', 11)} 扫描完成：${draft.deps.length} 个依赖` :
+            '点「扫描依赖」自动解析代码里的裸导入'}</div>
+          ${draft.deps.map((d, i) => `
+            <div class="dep-edit-row">
+              <span class="name">${esc(d.name)}</span>
+              <input data-dep-ver="${i}" value="${d.version}" title="版本">
+              <select data-dep-src="${i}">
+                <option value="bundled" ${d.source === 'bundled' ? 'selected' : ''}>同源预打包</option>
+                <option value="cdn" ${d.source === 'cdn' ? 'selected' : ''}>CDN</option>
+              </select>
+              <button class="rm" data-rmdep="${i}" title="移除依赖">${icon('x', 11)}</button>
+            </div>`).join('')}
+          <div class="form-hint">「同源预打包」= 平台构建期已 esbuild 产物（内网可用）；「CDN」= 运行时走 esm.sh（需出网）。版本建议对齐你项目里实际使用的版本。</div>
+        </div>
+      </div>
+    </div>
+    <div class="drawer__foot">
+      <button class="btn" id="dCancel">取消</button>
+      <button class="btn btn--primary" id="dSave">${icon('check', 12)} 保存</button>
+    </div>`
+
+  /* 抽屉内交互全部就地绑定，避免全局状态污染 */
+  $('#dClose').onclick = $('#dCancel').onclick = closeDrawer
+  $('#dName').oninput = (e) => draft.name = e.target.value
+  $('#dDesc').oninput = (e) => draft.description = e.target.value
+  $('#dTags').oninput = (e) => draft.tags = e.target.value.split(/[,，]/).map(s => s.trim()).filter(Boolean)
+  $('#dType').onchange = (e) => draft.type = e.target.value
+  $('#dLang').onchange = (e) => draft.lang = e.target.value
+  $('#dCode').oninput = (e) => draft.files[draftFileIdx].code = e.target.value
+  $('#dFileName').onchange = (e) => {
+    const old = draft.files[draftFileIdx].name
+    draft.files[draftFileIdx].name = e.target.value.trim() || old
+    if (draft.entry === old) draft.entry = draft.files[draftFileIdx].name
+    renderDrawer()
+  }
+  $('#dEntry').onchange = (e) => { draft.entry = e.target.checked ? draft.files[draftFileIdx].name : null; renderDrawer() }
+  $('#dAddFile').onclick = () => {
+    draft.files.push({ name: `file${draft.files.length}.ts`, lang: 'ts', code: '' })
+    draftFileIdx = draft.files.length - 1
+    renderDrawer()
+  }
+  drawer.querySelectorAll('[data-dfile]').forEach(btn => btn.onclick = (e) => {
+    if (e.target.closest('[data-rmfile]')) return
+    draftFileIdx = Number(btn.dataset.dfile)
+    renderDrawer()
+  })
+  drawer.querySelectorAll('[data-rmfile]').forEach(btn => btn.onclick = (e) => {
+    e.stopPropagation()
+    const idx = Number(btn.dataset.rmfile)
+    if (draft.files.length <= 1) { toast('至少保留一个文件'); return }
+    const [removed] = draft.files.splice(idx, 1)
+    if (draft.entry === removed.name) draft.entry = null
+    draftFileIdx = Math.min(draftFileIdx, draft.files.length - 1)
+    renderDrawer()
+  })
+  $('#dScan').onclick = () => {
+    scanState = 'scanning'
+    renderDrawer()
+    setTimeout(() => {  // 演出扫描耗时；真实实现是同步正则，无延时
+      const found = scanDeps()
+      draft.deps = found
+      scanState = 'done'
+      renderDrawer()
+    }, 600)
+  }
+  drawer.querySelectorAll('[data-dep-ver]').forEach(inp => inp.onchange = (e) => {
+    draft.deps[Number(inp.dataset.depVer)].version = e.target.value.trim() || 'latest'
+  })
+  drawer.querySelectorAll('[data-dep-src]').forEach(sel => sel.onchange = (e) => {
+    draft.deps[Number(sel.dataset.depSrc)].source = e.target.value
+  })
+  drawer.querySelectorAll('[data-rmdep]').forEach(btn => btn.onclick = () => {
+    draft.deps.splice(Number(btn.dataset.rmdep), 1)
+    renderDrawer()
+  })
+  $('#dSave').onclick = () => {
+    if (!draft.name.trim()) { toast('名称必填'); return }
+    if (draft.tags.length > 8) { toast('标签最多 8 个'); return }
+    const exist = ITEMS.findIndex(i => i.id === draft.id)
+    // 组件/函数默认可预览：有入口文件且语言是 vue 生态
+    draft.previewable = Boolean(draft.entry && draft.files.some(f => f.name === draft.entry))
+    if (exist >= 0) ITEMS[exist] = draft
+    else ITEMS.unshift(draft)
+    state.selectedId = draft.id
+    closeDrawer()
+    renderAll()
+    toast(exist >= 0 ? '已保存' : '已入库')
+  }
+}
+
+/* ============ 全局事件 ============ */
+$('#kwInput').addEventListener('input', (e) => {
+  state.kw = e.target.value.trim()
+  renderList(); renderDetail()
+})
+$('#typeSeg').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-type]')
+  if (!btn) return
+  state.type = btn.dataset.type
+  renderAll()
+})
+$('#tagSel').addEventListener('change', (e) => {
+  state.tag = e.target.value
+  renderAll()
+})
+listEl.addEventListener('click', (e) => {
+  const tag = e.target.closest('[data-tag]')
+  if (tag) { state.tag = tag.dataset.tag; renderAll(); return }  // 列表里的标签可点：一键过滤
+  const item = e.target.closest('[data-id]')
+  if (!item || item.dataset.id === state.selectedId) return
+  state.selectedId = item.dataset.id
+  state.fileIdx = 0
+  state.view = 'code'
+  state.depsOpen = false
+  renderList(); renderDetail()
+})
+detailEl.addEventListener('click', (e) => {
+  const tag = e.target.closest('[data-tag]')
+  if (tag) { state.tag = tag.dataset.tag; renderAll(); return }
+
+  const fileTab = e.target.closest('[data-file]')
+  if (fileTab) { state.fileIdx = Number(fileTab.dataset.file); renderDetail(); return }
+
+  const viewBtn = e.target.closest('[data-view]')
+  if (viewBtn) { state.view = viewBtn.dataset.view; renderDetail(); return }
+
+  const act = e.target.closest('[data-act]')
+  if (!act) return
+  const it = current()
+  if (act.dataset.act === 'copy') {
+    it.copyCount++
+    renderList(); renderDetail()
+    toast(it.type === 'doc' ? '已复制全文' : '已复制到剪贴板')
+  } else if (act.dataset.act === 'edit') {
+    openDrawer(it)
+  } else if (act.dataset.act === 'del') {
+    if (confirm(`确认删除「${it.name}」？删除后底账保留（逻辑删除）。`)) {
+      const idx = ITEMS.findIndex(i => i.id === it.id)
+      ITEMS.splice(idx, 1)
+      state.selectedId = ITEMS[0]?.id || null
+      renderAll()
+      toast('已删除')
+    }
+  } else if (act.dataset.act === 'deps') {
+    state.depsOpen = !state.depsOpen
+    renderDetail()
+  } else if (act.dataset.act === 'immap') {
+    state.immapOpen = !state.immapOpen
+    renderDetail()
+  }
+})
+$('#createBtn').addEventListener('click', () => openDrawer(null))
+$('#refreshBtn').addEventListener('click', () => toast('已刷新'))
+$('#themeBtn').addEventListener('click', () => {
+  state.theme = state.theme === 'light' ? 'dark' : 'light'
+  applyTheme()
+})
+mask.addEventListener('click', closeDrawer)
+
+/* 启动 */
+applyTheme()
+renderAll()
+</script>
+</body>
+</html>
