@@ -11,6 +11,7 @@ import HistoryDrawer from '@/components/HistoryDrawer.vue'
 import { useSyslogTemplate } from '@/composables/useSyslogTemplate'
 import { useSyslogSender } from '@/composables/useSyslogSender'
 import { useSyslogHistory } from '@/composables/useSyslogHistory'
+import { getApiMode } from '@/api'
 
 const { t } = useI18n()
 
@@ -18,10 +19,14 @@ const { t } = useI18n()
 const { message: antdMessage } = App.useApp()
 bindFeedback(antdMessage)
 
-const MODE_OPTIONS = computed(() => [
-  { label: t('syslog.sourceMock'), value: 'mock' },
-  { label: t('syslog.sourceReal'), value: 'real' },
-])
+/**
+ * 当前数据源模式的只读展示。控制点在基座设置抽屉（经数据通道下发），
+ * 子应用页面上只显示不切换——两处开关会造成状态打架。
+ * computed 内读 getApiMode() 会跟踪 lastApiMode ref，基座切换后徽标实时跟随。
+ */
+const apiModeLabel = computed(() =>
+  getApiMode() === 'real' ? t('syslog.sourceReal') : t('syslog.sourceMock'),
+)
 
 /* ---------- 模板能力 ---------- */
 // randomize 由父级持有：同时影响模板渲染与发送配置表单
@@ -31,8 +36,6 @@ const { currentTpl, tplText, previewHtml, onTplChange, renderForDriver } = useSy
 /* ---------- 发送能力 ---------- */
 const sender = useSyslogSender(currentTpl, renderForDriver)
 const {
-  apiMode,
-  onModeChange,
   targetIp,
   targetPort,
   sendCount,
@@ -114,13 +117,10 @@ const presetSummaryPreview = computed(
         </div>
       </div>
       <div class="page-header-actions">
-        <!-- 数据源开关：mock/real 的唯一控制点，选择持久化在 localStorage -->
-        <a-segmented
-          :value="apiMode"
-          :options="MODE_OPTIONS"
-          size="small"
-          @change="onModeChange"
-        />
+        <!-- 数据源只读徽标：控制点在基座设置抽屉，这里仅展示当前模式 -->
+        <span class="pbadge" :title="t('syslog.sourceLabel')">
+          {{ t('syslog.sourceLabel') }} · {{ apiModeLabel }}
+        </span>
         <a-button @click="openSaveModal">
           <template #icon><AppIcon name="save" :size="13" /></template>
           {{ t('syslog.saveTask') }}

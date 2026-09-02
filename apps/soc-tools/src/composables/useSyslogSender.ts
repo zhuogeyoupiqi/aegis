@@ -9,10 +9,7 @@ import { computed, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { lastThemeSnapshot, toast } from '@aegis/shared'
 import {
-  getApiMode,
-  setApiMode,
   startSendTask,
-  type ApiMode,
   type RenderedMessage,
   type SendDriverEvent,
   type SendHandle,
@@ -41,13 +38,6 @@ export function useSyslogSender(
 ) {
   const { t } = useI18n()
   // toast 实例由 SyslogSender.vue 统一绑定（bindFeedback 只应调用一次）
-
-  /* ---------- 数据源模式 ---------- */
-  const apiMode = ref<ApiMode>(getApiMode())
-  function onModeChange(v: string | number): void {
-    apiMode.value = v as ApiMode
-    setApiMode(v as ApiMode)
-  }
 
   /* ---------- 表单状态 ---------- */
   const targetIp = ref('10.12.33.45')
@@ -191,8 +181,6 @@ export function useSyslogSender(
   })
 
   return {
-    apiMode,
-    onModeChange,
     targetIp,
     targetPort,
     sendCount,

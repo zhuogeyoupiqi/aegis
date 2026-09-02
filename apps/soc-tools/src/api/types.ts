@@ -6,8 +6,8 @@
  * 类比后端的 record SyslogEvents：type 字段是判别联合的 tag。
  */
 
-/** 数据源模式：mock = 纯前端模拟；real = 走后端真实 UDP 发包 */
-export type ApiMode = 'mock' | 'real'
+// 数据源模式统一用契约包定义（基座偏好、数据通道、子应用读取三处一个真源）
+export type { ApiMode } from '@aegis/contract'
 
 /**
  * 模板渲染产物。
