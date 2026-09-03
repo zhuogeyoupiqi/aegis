@@ -1,0 +1,58 @@
+/**
+ * 资产仓库类型色板。
+ *
+ * 五类资产各有一个稳定的色相锚点，用于列表左侧色条、类型徽标、文件树入口标记等。
+ * 颜色同时提供 light / dark 两套值，通过 [data-theme="dark"] 自动切换。
+ *
+ * 设计原则：类型色是"辅助扫视"的色相，不是状态语义（不占用红黄绿），
+ * 所以即使切换主题色，类型色相也保持不变——它是资产分类的视觉记忆点。
+ */
+
+:root {
+  --type-snippet: #1668dc;
+  --type-snippet-bg: rgba(22, 104, 220, 0.09);
+  --type-snippet-border: rgba(22, 104, 220, 0.25);
+
+  --type-component: #722ed1;
+  --type-component-bg: rgba(114, 46, 209, 0.09);
+  --type-component-border: rgba(114, 46, 209, 0.25);
+
+  --type-function: #0e9488;
+  --type-function-bg: rgba(14, 148, 136, 0.1);
+  --type-function-border: rgba(14, 148, 136, 0.28);
+
+  --type-doc: #d46b08;
+  --type-doc-bg: rgba(212, 107, 8, 0.09);
+  --type-doc-border: rgba(212, 107, 8, 0.25);
+
+  --type-link: #389e0d;
+  --type-link-bg: rgba(56, 158, 13, 0.1);
+  --type-link-border: rgba(56, 158, 13, 0.28);
+
+  /* 预览沙箱运行态：生命力的绿色，不参与明暗切换 */
+  --preview-running: #55c51e;
+  --preview-running-pulse: rgba(85, 197, 30, 0.35);
+}
+
+[data-theme="dark"] {
+  /* 暗色模式下类型色适当提亮，保证在深色背景上的可读性 */
+  --type-snippet: #4a9af5;
+  --type-snippet-bg: rgba(74, 154, 245, 0.14);
+  --type-snippet-border: rgba(74, 154, 245, 0.35);
+
+  --type-component: #a855f7;
+  --type-component-bg: rgba(168, 85, 247, 0.14);
+  --type-component-border: rgba(168, 85, 247, 0.35);
+
+  --type-function: #14b8a6;
+  --type-function-bg: rgba(20, 184, 166, 0.14);
+  --type-function-border: rgba(20, 184, 166, 0.35);
+
+  --type-doc: #f6ad55;
+  --type-doc-bg: rgba(246, 173, 85, 0.14);
+  --type-doc-border: rgba(246, 173, 85, 0.35);
+
+  --type-link: #68d94c;
+  --type-link-bg: rgba(104, 217, 76, 0.14);
+  --type-link-border: rgba(104, 217, 76, 0.35);
+}

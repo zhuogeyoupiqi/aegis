@@ -32,8 +32,13 @@ const tagOptions = computed(() => {
   return [...set].sort()
 })
 
-/** 重查列表；选中项被过滤掉时自动落到首条（双栏检索台：右栏尽量不空着） */
-async function reload(): Promise<void> {
+/**
+ * 重查列表。
+ * @param opts.autoSelectFirst 是否在没有选中项时自动落到首条。
+ *        卡片网格首页/搜索/筛选都不应打扰用户当前选中态；
+ *        只有列表分栏模式的视图层在初始化/切换时主动要求才自动选中。
+ */
+async function reload(opts?: { autoSelectFirst?: boolean }): Promise<void> {
   loading.value = true
   try {
     items.value = await listItems({
@@ -41,7 +46,7 @@ async function reload(): Promise<void> {
       type: typeFilter.value || undefined,
       tag: tagFilter.value,
     })
-    if (!items.value.some((i) => i.id === selectedId.value)) {
+    if (opts?.autoSelectFirst && !items.value.some((i) => i.id === selectedId.value)) {
       selectedId.value = items.value[0]?.id ?? null
     }
   } catch (e) {
@@ -60,8 +65,8 @@ watch(kw, () => {
   if (kwTimer) clearTimeout(kwTimer)
   kwTimer = setTimeout(reload, 300)
 })
-// 类型/标签是离散选择，变更即查
-watch([typeFilter, tagFilter], reload)
+// 类型/标签是离散选择，变更即查；reload 现在带可选参数，包一层避免 watch 类型不匹配
+watch([typeFilter, tagFilter], () => reload())
 
 /** 清理副作用：组件卸载时取消未触发的防抖定时器，防止子应用销毁后仍发起请求 */
 function cleanup(): void {

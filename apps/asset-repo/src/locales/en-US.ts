@@ -17,6 +17,15 @@ export default {
     sourceMock: 'Mock',
     sourceReal: 'Real API',
 
+    // Theme toggle (only visible when asset-repo runs standalone)
+    themeLight: 'Switch to light',
+    themeDark: 'Switch to dark',
+
+    // View switch
+    viewGrid: 'Grid view',
+    viewList: 'List view',
+    backToGrid: 'Back to grid',
+
     listEmpty: 'No matching assets',
     listEmptyHint: 'Try another keyword, or create one',
     copyCountShort: '{n} copies',
@@ -55,6 +64,12 @@ export default {
     depCdn: 'CDN',
     previewRunning: 'running',
     previewLoading: 'Compiling preview…',
+    previewRetry: 'Retry',
+    previewLoadFailed: 'Preview load failed',
+    previewCompileFailed: 'Compile failed',
+    previewShowDetail: 'Show detail',
+    previewHideDetail: 'Hide detail',
+    previewCopyError: 'Copy error',
     previewFallback: 'Bundled artifacts missing ({names}), fell back to public CDN',
 
     types: {
@@ -84,14 +99,25 @@ export default {
       submit: 'Save',
       cancel: 'Cancel',
 
+      // Drawer tabs
+      formTabMeta: 'Meta',
+      formTabFiles: 'Files',
+      formTabDeps: 'Deps',
+
       // V2 form: files section / preview entry / deps editor
       url: 'URL',
+      setEntry: 'Set as preview entry',
+      noFileSelected: 'Select a file on the left to edit',
+      linkNoFiles: 'Link clippings do not need files',
+      linkNoDeps: 'Link clippings do not need deps',
       urlRequired: 'Please enter the URL',
       files: 'Files',
       filesRequired: 'At least one file is required (paste or drop a folder)',
       addFile: 'New file',
       importFolder: 'Import folder',
       scanDeps: 'Scan deps',
+      addDep: 'Add dependency',
+      removeDep: 'Remove dependency',
       dropHint: 'or drop a component folder right here',
       removeFile: 'Remove file',
       pathPlaceholder: 'Path, e.g. src/index.ts (directories allowed)',

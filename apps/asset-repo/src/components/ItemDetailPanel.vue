@@ -6,7 +6,7 @@ import FileTree from '@/components/FileTree.vue'
 import PreviewSandbox from '@/components/PreviewSandbox.vue'
 import { useAssetRepo } from '@/composables/useAssetRepo'
 import { useShiki } from '@/composables/useShiki'
-import { ASSET_TYPE_ICON, isPreviewable } from '@/api/types'
+import { ASSET_TYPE_META, isPreviewable } from '@/api/types'
 
 /**
  * 右栏详情面板（双栏检索台的常驻区）。
@@ -17,11 +17,13 @@ const { t } = useI18n()
 const { selected, copyAll, copyFile, downloadZip, openEdit, remove, tagFilter } = useAssetRepo()
 const { highlight } = useShiki()
 
-// 类型 → 图标从契约层统一导入，新增类型时只改一处
-
 /* ---------- 当前查看的文件（文件树选中态，随资产切换复位到入口文件） ---------- */
 
 const activePath = ref<string | null>(null)
+
+/** 代码/预览二态；无预览能力（非 .vue 入口/缺 vue 依赖）的资产不显示切换 */
+const previewable = computed(() => (selected.value ? isPreviewable(selected.value) : false))
+const mode = ref<'code' | 'preview'>('code')
 
 watch(
   () => selected.value?.id,
@@ -29,15 +31,14 @@ watch(
     const item = selected.value
     // 优先落在预览入口（作者心里的"主文件"），否则第一个文件
     activePath.value = item ? (item.entry ?? item.files[0]?.path ?? null) : null
+    // 切换资产后回到代码视图：preview 是二次操作，不默认保留
+    mode.value = 'code'
   },
   { immediate: true },
 )
 
 const activeFile = computed(() => selected.value?.files.find((f) => f.path === activePath.value) ?? null)
 
-/** 代码/预览二态；无预览能力（非 .vue 入口/缺 vue 依赖）的资产不显示切换 */
-const previewable = computed(() => (selected.value ? isPreviewable(selected.value) : false))
-const mode = ref<'code' | 'preview'>('code')
 watch(previewable, (ok) => {
   if (!ok) mode.value = 'code'
 })
@@ -72,32 +73,27 @@ function onCopyMenu({ key }: { key: string | number }): void {
 <template>
   <!-- 未选中：引导态（列表为空 / 过滤后无匹配时出现） -->
   <div v-if="!selected" class="panel-empty">
-    <a-empty :description="t('repo.detailEmptyTitle')" />
+    <AppIcon name="box" :size="44" />
+    <p class="panel-empty__title">{{ t('repo.detailEmptyTitle') }}</p>
     <p class="panel-empty__sub">{{ t('repo.detailEmptySub') }}</p>
   </div>
 
   <div v-else class="panel">
+    <!-- 头部：只保留资产名与主操作，视觉重心更清晰 -->
     <header class="panel__head">
       <div class="panel__title">
-        <AppIcon :name="ASSET_TYPE_ICON[selected.type]" :size="15" />
+        <AppIcon :name="ASSET_TYPE_META[selected.type].icon" :size="16" />
         <h2>{{ selected.name }}</h2>
-        <span class="type-badge" :class="`type-${selected.type}`">{{ t(`repo.types.${selected.type}`) }}</span>
-        <span v-if="selected.type !== 'doc' && selected.type !== 'link' && selected.lang" class="lang-chip">{{
-          selected.lang
-        }}</span>
-        <span v-if="previewable" class="preview-chip">
-          <AppIcon name="play" :size="10" />
-          {{ t('repo.previewable') }}
-        </span>
       </div>
+
       <div class="panel__actions">
-        <!-- 复制动作组：多文件分化（此文件/全部/zip），单文件与 link 保持一颗按钮 -->
+        <!-- 多文件资产：复制动作以下拉方式聚合，避免工具条过长 -->
         <a-dropdown v-if="selected.files.length > 1">
-          <a-button size="small" type="primary" ghost>
-            <template #icon><AppIcon name="copy" :size="13" /></template>
+          <button class="btn btn-ghost btn-sm" :title="t('repo.copy')">
+            <AppIcon name="copy" :size="13" />
             {{ t('repo.copy') }}
-            <AppIcon name="chevronDown" :size="11" style="margin-left: 2px" />
-          </a-button>
+            <AppIcon name="chevronDown" :size="11" />
+          </button>
           <template #overlay>
             <a-menu @click="onCopyMenu">
               <a-menu-item key="file" :disabled="!activeFile">
@@ -106,33 +102,53 @@ function onCopyMenu({ key }: { key: string | number }): void {
               <a-menu-item key="all">{{ t('repo.copyAllFiles') }}</a-menu-item>
               <a-menu-divider />
               <a-menu-item key="zip">
-                <AppIcon name="download" :size="12" style="margin-right: 4px" />
+                <AppIcon name="download" :size="12" />
                 {{ t('repo.downloadZip') }}
               </a-menu-item>
             </a-menu>
           </template>
         </a-dropdown>
-        <a-button v-else size="small" type="primary" ghost @click="copyAll(selected)">
-          <template #icon><AppIcon name="copy" :size="13" /></template>
-          {{ t('repo.copy') }}
-        </a-button>
-        <a-button size="small" @click="openEdit(selected)">
-          <template #icon><AppIcon name="edit" :size="13" /></template>
-          {{ t('repo.edit') }}
-        </a-button>
-        <a-popconfirm :title="t('repo.deleteConfirm')" :ok-text="t('repo.delete')" :cancel-text="t('repo.form.cancel')" @confirm="remove(selected)">
-          <a-button size="small" danger>
-            <template #icon><AppIcon name="trash" :size="13" /></template>
-            {{ t('repo.delete') }}
-          </a-button>
+
+        <a-tooltip v-else :title="t('repo.copy')">
+          <button class="btn btn-ghost btn-icon" @click="copyAll(selected)">
+            <AppIcon name="copy" :size="14" />
+          </button>
+        </a-tooltip>
+
+        <a-tooltip :title="t('repo.edit')">
+          <button class="btn btn-default btn-icon" @click="openEdit(selected)">
+            <AppIcon name="edit" :size="14" />
+          </button>
+        </a-tooltip>
+
+        <a-popconfirm
+          :title="t('repo.deleteConfirm')"
+          :ok-text="t('repo.delete')"
+          :cancel-text="t('repo.form.cancel')"
+          @confirm="remove(selected)"
+        >
+          <a-tooltip :title="t('repo.delete')">
+            <button class="btn btn-danger-outline btn-icon">
+              <AppIcon name="trash" :size="14" />
+            </button>
+          </a-tooltip>
         </a-popconfirm>
       </div>
     </header>
 
+    <!-- 元信息行：类型、语言、标签、统计全部收敛到这里 -->
     <div class="panel__meta">
-      <button v-for="tag in selected.tags" :key="tag" class="meta-tag" @click="onTagClick(tag)">#{{ tag }}</button>
-      <span class="meta-item">{{ t('repo.copyCount', { n: selected.copyCount }) }}</span>
-      <span class="meta-item">{{ t('repo.updated', { time: timeLabel }) }}</span>
+      <span class="meta-type" :class="`type-${selected.type}`">
+        {{ t(`repo.types.${selected.type}`) }}
+      </span>
+      <span v-if="selected.type !== 'doc' && selected.type !== 'link' && selected.lang" class="meta-lang">
+        {{ selected.lang }}
+      </span>
+      <button v-for="tag in selected.tags" :key="tag" class="meta-tag" @click="onTagClick(tag)">
+        #{{ tag }}
+      </button>
+      <span class="meta-stat">{{ t('repo.copyCount', { n: selected.copyCount }) }}</span>
+      <span class="meta-stat">{{ t('repo.updated', { time: timeLabel }) }}</span>
     </div>
 
     <!-- 链接剪藏：卡片化展示，点击新窗口打开（noopener 防反向 tab 劫持） -->
@@ -149,61 +165,62 @@ function onCopyMenu({ key }: { key: string | number }): void {
     </a>
 
     <template v-else>
-      <!-- 代码 / 预览切换：有预览能力的资产才出现 -->
-      <div v-if="previewable" class="panel__mode">
-        <a-segmented
-          v-model:value="mode"
-          size="small"
-          :options="[
-            { label: t('repo.tabCode'), value: 'code' },
-            { label: t('repo.tabPreview'), value: 'preview' },
-          ]"
-        />
-      </div>
+      <!-- 代码 / 预览区：文件树头部集成 Tab 切换，成为内容 chrome -->
+      <div class="code-stage">
+        <div class="code-stage__chrome">
+          <FileTree
+            class="code-stage__tree"
+            :files="selected.files"
+            :active-path="activePath"
+            :entry="selected.entry"
+            @select="(p) => (activePath = p)"
+          />
 
-      <!-- 预览沙箱：整卡替换代码区（两者并列只会互相挤压） -->
-      <PreviewSandbox v-if="mode === 'preview' && previewable" :item="selected" />
+          <div v-if="previewable" class="tabs">
+            <button class="tab" :class="{ active: mode === 'code' }" @click="mode = 'code'">
+              <AppIcon name="code" :size="11" />
+              {{ t('repo.tabCode') }}
+            </button>
+            <button class="tab" :class="{ active: mode === 'preview' }" @click="mode = 'preview'">
+              <AppIcon name="play" :size="11" />
+              {{ t('repo.tabPreview') }}
+            </button>
+          </div>
+        </div>
 
-      <!-- 代码模式：左文件树卡 + 右代码块 -->
-      <div v-else class="code-layout">
-        <aside class="files-card">
-          <div class="files-card__head">
-            <AppIcon name="folder" :size="12" />
-            <span>{{ t('repo.filesLabel') }} · {{ selected.files.length }}</span>
-          </div>
-          <div class="files-card__body">
-            <FileTree
-              :files="selected.files"
-              :active-path="activePath"
-              :entry="selected.entry"
-              @select="(p) => (activePath = p)"
-            />
-          </div>
-          <div class="files-card__foot">
-            <span class="foot-path">{{ activeFile?.path ?? '—' }}</span>
-            <span class="foot-lines">{{ t('repo.linesShort', { n: lineCount }) }}</span>
-          </div>
-        </aside>
+        <div class="code-stage__body">
+          <PreviewSandbox v-if="mode === 'preview' && previewable" :item="selected" />
 
-        <!-- Shiki 高亮块（v-html 的内容是本地高亮产物，无用户可控标记注入面） -->
-        <div class="code-col">
-          <div class="code-block" v-html="codeHtml" />
+          <div v-else class="code-block">
+            <div class="code-block__head">
+              <span class="code-block__path">{{ activeFile?.path ?? '—' }}</span>
+              <span class="code-block__lines">{{ t('repo.linesShort', { n: lineCount }) }}</span>
+            </div>
+            <!-- Shiki 高亮块（v-html 的内容是本地高亮产物，无用户可控标记注入面） -->
+            <div class="code-block__content" v-html="codeHtml" />
+          </div>
         </div>
       </div>
 
-      <!-- 依赖面板：预览可用性的透明度——每个依赖从哪来（预打包/CDN）一目了然 -->
-      <a-collapse v-if="selected.deps.length" ghost class="deps-collapse">
-        <a-collapse-panel :header="t('repo.depsLabel') + ' · ' + selected.deps.length">
-          <div class="dep-row" v-for="dep in selected.deps" :key="dep.name">
-            <AppIcon name="pkg" :size="12" />
+      <!-- 依赖面板：从折叠改为精致清单卡片 -->
+      <div v-if="selected.deps.length" class="deps-card">
+        <div class="deps-card__head">
+          <AppIcon name="pkg" :size="13" />
+          <span>{{ t('repo.depsLabel') }} · {{ selected.deps.length }}</span>
+        </div>
+        <div class="deps-card__body">
+          <div v-for="dep in selected.deps" :key="dep.name" class="dep-row">
             <span class="dep-name">{{ dep.name }}</span>
             <span class="dep-version">{{ dep.version }}</span>
-            <span class="dep-source" :class="dep.source">{{ t(dep.source === 'bundled' ? 'repo.depBundled' : 'repo.depCdn') }}</span>
+            <span class="dep-source" :class="dep.source">
+              {{ t(dep.source === 'bundled' ? 'repo.depBundled' : 'repo.depCdn') }}
+            </span>
           </div>
-        </a-collapse-panel>
-      </a-collapse>
+        </div>
+      </div>
     </template>
 
+    <!-- 描述：独立小卡片，避免底部突兀 -->
     <p v-if="selected.description" class="panel__desc">
       <b>{{ t('repo.descriptionLabel') }}：</b>{{ selected.description }}
     </p>
@@ -217,20 +234,34 @@ function onCopyMenu({ key }: { key: string | number }): void {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 10px;
   color: var(--fg-muted);
+  text-align: center;
+
+  :deep(svg) {
+    color: var(--border-strong);
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 14px;
+    color: var(--fg-sub);
+    font-weight: 500;
+  }
 
   &__sub {
     font-size: 12px;
     color: var(--fg-muted);
-    margin-top: -12px;
+    margin-top: -4px;
   }
 }
 
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  padding: 18px;
+  height: 100%;
 }
 
 .panel__head {
@@ -242,18 +273,18 @@ function onCopyMenu({ key }: { key: string | number }): void {
   .panel__title {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     min-width: 0;
-    flex-wrap: wrap;
 
     h2 {
-      font-size: 15px;
+      font-size: 16px;
       font-weight: 600;
-      // 长资产名折行而不是把徽标挤走
+      margin: 0;
+      color: var(--fg);
       overflow-wrap: anywhere;
     }
 
-    svg {
+    :deep(svg) {
       color: var(--fg-muted);
     }
   }
@@ -266,70 +297,45 @@ function onCopyMenu({ key }: { key: string | number }): void {
   }
 }
 
-.type-badge {
-  flex: none;
-  font-size: 11px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-
-  // 五类各给一个稳定的色相锚点：辅助扫视定位，不是状态语义（不占用红黄绿）
-  .type-snippet & { color: #1668dc; background: rgba(22, 104, 220, 0.09); border-color: rgba(22, 104, 220, 0.25); }
-  .type-component & { color: #722ed1; background: rgba(114, 46, 209, 0.09); border-color: rgba(114, 46, 209, 0.25); }
-  .type-function & { color: #0e9488; background: rgba(14, 148, 136, 0.1); border-color: rgba(14, 148, 136, 0.28); }
-  .type-doc & { color: #d46b08; background: rgba(212, 107, 8, 0.09); border-color: rgba(212, 107, 8, 0.25); }
-  .type-link & { color: #389e0d; background: rgba(56, 158, 13, 0.1); border-color: rgba(56, 158, 13, 0.28); }
-}
-
-.lang-chip {
-  flex: none;
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--fg-muted);
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 0 6px;
-  line-height: 1.5;
-}
-
-.preview-chip {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: #389e0d;
-  background: rgba(56, 158, 13, 0.08);
-  border: 1px solid rgba(56, 158, 13, 0.28);
-  border-radius: 999px;
-  padding: 0 8px;
-  line-height: 1.5;
-}
-
-.menu-path {
-  margin-left: 8px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--fg-muted);
-}
-
 .panel__meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  font-size: 11.5px;
-  color: var(--fg-muted);
+  font-size: 12px;
+
+  .meta-type {
+    flex: none;
+    padding: 1px 9px;
+    border-radius: 999px;
+    line-height: 1.5;
+
+    &.type-snippet { color: var(--type-snippet); background: var(--type-snippet-bg); }
+    &.type-component { color: var(--type-component); background: var(--type-component-bg); }
+    &.type-function { color: var(--type-function); background: var(--type-function-bg); }
+    &.type-doc { color: var(--type-doc); background: var(--type-doc-bg); }
+    &.type-link { color: var(--type-link); background: var(--type-link-bg); }
+  }
+
+  .meta-lang {
+    flex: none;
+    font-family: var(--font-mono);
+    color: var(--fg-muted);
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0 6px;
+    line-height: 1.5;
+  }
 
   .meta-tag {
     font-family: inherit;
-    font-size: 11.5px;
+    font-size: 12px;
     color: var(--primary);
     background: color-mix(in srgb, var(--primary) 7%, transparent);
-    border: 1px solid color-mix(in srgb, var(--primary) 22%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
     border-radius: 999px;
-    padding: 0 8px;
+    padding: 1px 9px;
     line-height: 1.5;
     cursor: pointer;
     transition: all var(--ease);
@@ -339,8 +345,8 @@ function onCopyMenu({ key }: { key: string | number }): void {
     }
   }
 
-  .meta-item {
-    // 两个统计项与前排标签拉开一点节奏
+  .meta-stat {
+    color: var(--fg-muted);
     margin-left: 4px;
   }
 }
@@ -351,12 +357,14 @@ function onCopyMenu({ key }: { key: string | number }): void {
   gap: 10px;
   padding: 14px 16px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--primary);
-  transition: border-color var(--ease);
+  text-decoration: none;
+  transition: all var(--ease);
 
   &:hover {
     border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+    background: color-mix(in srgb, var(--primary) 4%, transparent);
   }
 
   &__url {
@@ -374,122 +382,166 @@ function onCopyMenu({ key }: { key: string | number }): void {
   }
 }
 
-.panel__mode {
-  display: flex;
-  justify-content: center;
-}
-
-.code-layout {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-
-  // 窄屏（含子应用 iframe 被压窄的场景）：文件树压成横向限高的条，代码块下移
-  @media (max-width: 900px) {
-    grid-template-columns: 1fr;
-
-    .files-card {
-      max-height: 200px;
-    }
-  }
-}
-
-.files-card {
+.code-stage {
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-card);
+  border-radius: var(--radius-md);
   overflow: hidden;
+  background: var(--bg-card);
+  flex: 1;
+  min-height: 360px;
 
-  &__head {
+  &__chrome {
     flex: none;
     display: flex;
     align-items: center;
-    gap: 6px;
-    height: 32px;
-    padding: 0 10px;
-    font-size: 11.5px;
-    font-weight: 500;
-    color: var(--fg-sub);
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
     border-bottom: 1px solid var(--border);
-    background: var(--bg-deep, var(--bg-input));
+    background: var(--bg-input);
+  }
+
+  &__tree {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__tabs {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
   }
 
   &__body {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
-    padding: 6px 4px;
-  }
-
-  &__foot {
-    flex: none;
+    position: relative;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    height: 28px;
-    padding: 0 10px;
-    border-top: 1px solid var(--border);
-    font-family: var(--font-mono);
-    font-size: 10.5px;
-    color: var(--fg-muted);
+    flex-direction: column;
+  }
+}
 
-    .foot-path {
-      min-width: 0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
+.tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
 
-    .foot-lines {
-      flex: none;
-    }
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--ease);
+
+  &:hover { color: var(--fg-sub); }
+
+  &.active {
+    color: var(--fg);
+    background: var(--bg-card);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   }
 }
 
 .code-block {
-  border-radius: 8px;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 
-  /* Shiki 产物自带内联背景/配色（github-light/dark），这里只管版式 */
-  :deep(pre.shiki),
-  :deep(pre.shiki-plain) {
-    margin: 0;
-    padding: 14px 16px;
-    overflow: auto;
-    max-height: 540px;
-    font-size: 12.5px;
-    line-height: 1.65;
-    font-family: var(--font-mono);
-  }
-
-  :deep(pre.shiki-plain) {
+  &__head {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
     background: var(--bg-input);
-    color: var(--fg-sub);
+    font-size: 11.5px;
   }
 
-  :deep(code) {
-    font-family: inherit;
+  &__path {
+    font-family: var(--font-mono);
+    color: var(--fg-sub);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__lines {
+    flex: none;
+    color: var(--fg-muted);
+  }
+
+  &__content {
+    flex: 1;
+    overflow: auto;
+    background: var(--bg-input);
+
+    :deep(pre.shiki),
+    :deep(pre.shiki-plain) {
+      margin: 0;
+      padding: 14px 16px;
+      min-height: 100%;
+      font-size: 12.5px;
+      line-height: 1.65;
+      font-family: var(--font-mono);
+    }
+
+    :deep(pre.shiki-plain) {
+      background: var(--bg-input);
+      color: var(--fg-sub);
+    }
+
+    :deep(code) {
+      font-family: inherit;
+    }
   }
 }
 
-// 依赖面板：去掉 antd collapse 默认的背景与内边距噪点
-.deps-collapse {
-  :deep(.ant-collapse-item) {
-    border-top: 1px dashed var(--border);
-  }
+.deps-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-card);
 
-  :deep(.ant-collapse-header) {
-    padding: 8px 0 !important;
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 12px;
     font-size: 12px;
+    font-weight: 500;
     color: var(--fg-sub);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-input);
+
+    :deep(svg) {
+      color: var(--fg-muted);
+    }
   }
 
-  :deep(.ant-collapse-content-box) {
-    padding: 4px 0 8px !important;
+  &__body {
+    padding: 6px 12px;
   }
 }
 
@@ -497,14 +549,9 @@ function onCopyMenu({ key }: { key: string | number }): void {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 26px;
+  height: 30px;
   font-size: 12px;
   color: var(--fg-sub);
-
-  svg {
-    color: var(--fg-muted);
-    flex: none;
-  }
 
   .dep-name {
     font-family: var(--font-mono);
@@ -526,34 +573,55 @@ function onCopyMenu({ key }: { key: string | number }): void {
     margin-left: auto;
     font-size: 10.5px;
     border-radius: 4px;
-    padding: 0 5px;
+    padding: 0 6px;
     line-height: 1.5;
 
     &.bundled {
-      color: #1668dc;
-      background: rgba(22, 104, 220, 0.09);
-      border: 1px solid rgba(22, 104, 220, 0.25);
+      color: var(--type-snippet);
+      background: var(--type-snippet-bg);
+      border: 1px solid var(--type-snippet-border);
     }
 
     &.cdn {
-      color: #d46b08;
-      background: rgba(212, 107, 8, 0.09);
-      border: 1px solid rgba(212, 107, 8, 0.25);
+      color: var(--type-doc);
+      background: var(--type-doc-bg);
+      border: 1px solid var(--type-doc-border);
     }
   }
 }
 
 .panel__desc {
+  margin: 0;
   font-size: 12.5px;
   color: var(--fg-sub);
-  background: var(--bg-deep, var(--bg-input));
+  background: var(--bg-input);
   border: 1px dashed var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 10px 12px;
 
   b {
     color: var(--fg-muted);
     font-weight: 500;
+  }
+}
+
+.menu-path {
+  margin-left: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+// 窄屏：代码舞台上下堆叠，Tab 放在文件树下方
+@media (max-width: 900px) {
+  .code-stage__chrome {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .code-stage__tabs,
+  .tabs {
+    align-self: flex-start;
   }
 }
 </style>

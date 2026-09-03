@@ -31,6 +31,8 @@ declare module 'vue' {
     ASelect: typeof import('ant-design-vue/es')['Select']
     ASpin: typeof import('ant-design-vue/es')['Spin']
     ATextarea: typeof import('ant-design-vue/es')['Textarea']
+    ATooltip: typeof import('ant-design-vue/es')['Tooltip']
+    CodeEditor: typeof import('./src/components/CodeEditor.vue')['default']
     FileTree: typeof import('./src/components/FileTree.vue')['default']
     ItemDetailPanel: typeof import('./src/components/ItemDetailPanel.vue')['default']
     ItemFormDrawer: typeof import('./src/components/ItemFormDrawer.vue')['default']

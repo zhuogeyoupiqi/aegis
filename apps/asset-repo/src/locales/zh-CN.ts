@@ -17,6 +17,15 @@ export default {
     sourceMock: '模拟',
     sourceReal: '真实接口',
 
+    // 主题切换（仅子应用独立运行时显示）
+    themeLight: '切换为浅色',
+    themeDark: '切换为深色',
+
+    // 视图切换
+    viewGrid: '卡片网格',
+    viewList: '列表分栏',
+    backToGrid: '返回卡片列表',
+
     // 左列列表
     listEmpty: '没有匹配的资产',
     listEmptyHint: '换个关键字试试，或新建一条',
@@ -56,6 +65,12 @@ export default {
     depCdn: 'CDN',
     previewRunning: '运行中',
     previewLoading: '编译预览中…',
+    previewRetry: '重试',
+    previewLoadFailed: '预览加载失败',
+    previewCompileFailed: '编译失败',
+    previewShowDetail: '查看详情',
+    previewHideDetail: '收起详情',
+    previewCopyError: '复制错误',
     previewFallback: '预打包产物缺失（{names}），已回退公网 CDN',
 
     types: {
@@ -85,14 +100,25 @@ export default {
       submit: '保 存',
       cancel: '取 消',
 
+      // 抽屉标签页
+      formTabMeta: '元信息',
+      formTabFiles: '文件',
+      formTabDeps: '依赖',
+
       // V2 表单：文件区 / 预览入口 / 依赖编辑
       url: '链接地址',
+      setEntry: '设为预览入口',
+      noFileSelected: '从左侧选择一个文件开始编辑',
+      linkNoFiles: '链接剪藏不需要文件',
+      linkNoDeps: '链接剪藏不需要依赖',
       urlRequired: '请输入链接地址',
       files: '文件',
       filesRequired: '至少需要一个文件（可粘贴或拖入文件夹）',
       addFile: '新文件',
       importFolder: '导入文件夹',
       scanDeps: '扫描依赖',
+      addDep: '手动添加依赖',
+      removeDep: '移除依赖',
       dropHint: '也可以直接把组件文件夹拖进来',
       removeFile: '移除文件',
       pathPlaceholder: '路径，如 src/index.ts（可含目录）',

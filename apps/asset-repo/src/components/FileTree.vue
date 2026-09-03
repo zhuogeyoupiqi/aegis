@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import AppIcon from '@/components/AppIcon.vue'
 import { buildTree, useTreeCollapse, type TreeNode } from '@/composables/useFileTree'
 import type { AssetFile } from '@/api/types'
@@ -25,6 +26,7 @@ const props = withDefaults(
 )
 const emit = defineEmits<{ select: [path: string]; remove: [path: string] }>()
 
+const { t } = useI18n()
 const { collapsed, toggle } = useTreeCollapse()
 
 interface Row {
@@ -44,6 +46,9 @@ const rows = computed<Row[]>(() => {
   walk(buildTree(props.files), 0)
   return out
 })
+
+const entryHint = t('repo.form.entryHint')
+const removeHint = t('repo.form.removeFile')
 </script>
 
 <template>
@@ -54,43 +59,52 @@ const rows = computed<Row[]>(() => {
       class="ftree__row"
       :class="{ 'is-collapsed': row.node.type === 'dir' && collapsed.has(row.node.path) }"
     >
-      <!-- 目录行：点击整行折叠/展开 -->
-      <button
+      <!--
+        目录行与文件行统一用 div[role="button"] 承载，避免原生 <button> 内再嵌套
+        可交互元素（如文件行的移除按钮）导致 HTML 无效与辅助技术混乱。
+      -->
+      <div
         v-if="row.node.type === 'dir'"
         class="row-main"
+        role="button"
+        tabindex="0"
         :style="{ paddingLeft: 4 + row.depth * 14 + 'px' }"
-        type="button"
         @click="toggle(row.node.path)"
+        @keydown.enter.space.prevent="toggle(row.node.path)"
       >
         <AppIcon :name="collapsed.has(row.node.path) ? 'chevronRight' : 'chevronDown'" :size="12" class="row-caret" />
         <AppIcon name="folder" :size="13" class="row-icon dir" />
         <span class="row-name">{{ row.node.name }}</span>
-      </button>
+      </div>
 
       <!-- 文件行：与目录行共享同一套左槽占位（caret 槽 + 图标槽），图标文字严格对齐 -->
-      <button
+      <div
         v-else
         class="row-main file"
+        role="button"
+        tabindex="0"
         :class="{ active: row.node.path === activePath }"
         :style="{ paddingLeft: 4 + row.depth * 14 + 'px' }"
-        type="button"
         :title="row.node.path"
         @click="emit('select', row.node.path)"
+        @keydown.enter.space.prevent="emit('select', row.node.path)"
       >
         <span class="row-caret" />
         <AppIcon name="fileText" :size="13" class="row-icon" />
         <span class="row-name">{{ row.node.name }}</span>
-        <span v-if="row.node.path === entry" class="row-entry">demo</span>
-        <span
+        <span v-if="row.node.path === entry" class="row-entry" :title="entryHint">
+          <AppIcon name="play" :size="10" />
+        </span>
+        <button
           v-if="removable"
           class="row-remove"
-          role="button"
-          :title="$t('repo.form.removeFile')"
+          type="button"
+          :title="removeHint"
           @click.stop="emit('remove', row.node.path)"
         >
           <AppIcon name="x" :size="11" />
-        </span>
-      </button>
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -124,13 +138,19 @@ const rows = computed<Row[]>(() => {
   border-radius: 5px;
   cursor: pointer;
   transition: background var(--ease);
+  outline: none;
 
-  &:hover {
-    background: var(--bg-input);
+  &:hover,
+  &:focus-visible {
+    background: color-mix(in srgb, var(--fg) 3%, transparent);
 
     .row-remove {
       opacity: 1;
     }
+  }
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 30%, transparent);
   }
 
   &.file.active {
@@ -170,14 +190,15 @@ const rows = computed<Row[]>(() => {
 
 .row-entry {
   flex: none;
-  font-size: 10px;
-  font-family: var(--font-mono);
-  color: #0e9488;
-  background: rgba(14, 148, 136, 0.1);
-  border: 1px solid rgba(14, 148, 136, 0.28);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--type-function);
+  background: var(--type-function-bg);
+  border: 1px solid var(--type-function-border);
   border-radius: 4px;
-  padding: 0 4px;
-  line-height: 1.4;
 }
 
 .row-remove {
@@ -187,14 +208,18 @@ const rows = computed<Row[]>(() => {
   justify-content: center;
   width: 18px;
   height: 18px;
+  padding: 0;
+  border: none;
   border-radius: 4px;
   color: var(--fg-muted);
+  background: transparent;
   opacity: 0;
+  cursor: pointer;
   transition: all var(--ease);
 
   &:hover {
-    color: #fd5257;
-    background: rgba(253, 82, 87, 0.1);
+    color: var(--sev-critical);
+    background: color-mix(in srgb, var(--sev-critical) 10%, transparent);
   }
 }
 </style>

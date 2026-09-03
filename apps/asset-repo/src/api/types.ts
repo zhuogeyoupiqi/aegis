@@ -86,11 +86,27 @@ export function isPreviewable(item: Pick<AssetItem, 'entry' | 'deps'>): boolean 
   return item.deps.some((d) => d.name === 'vue')
 }
 
-/** 资产类型 → 图标名：左列列表与右栏详情共用，避免新增类型时漏改一处 */
-export const ASSET_TYPE_ICON: Record<AssetType, string> = {
-  snippet: 'code',
-  component: 'box',
-  function: 'terminal',
-  doc: 'fileText',
-  link: 'link',
+/**
+ * 资产类型元信息：图标、主题色 token、文案键。
+ * 新增类型时只改这里，列表/详情/表单统一跟随。
+ */
+export interface AssetTypeMeta {
+  icon: string
+  /** CSS 变量名后缀，如 snippet 对应 --type-snippet */
+  color: string
+  /** i18n 键：repo.types.<key> */
+  labelKey: string
 }
+
+export const ASSET_TYPE_META: Record<AssetType, AssetTypeMeta> = {
+  snippet: { icon: 'code', color: 'snippet', labelKey: 'repo.types.snippet' },
+  component: { icon: 'box', color: 'component', labelKey: 'repo.types.component' },
+  function: { icon: 'terminal', color: 'function', labelKey: 'repo.types.function' },
+  doc: { icon: 'fileText', color: 'doc', labelKey: 'repo.types.doc' },
+  link: { icon: 'link', color: 'link', labelKey: 'repo.types.link' },
+}
+
+/** 兼容旧用法：只取图标名 */
+export const ASSET_TYPE_ICON: Record<AssetType, string> = Object.fromEntries(
+  (Object.keys(ASSET_TYPE_META) as AssetType[]).map((k) => [k, ASSET_TYPE_META[k].icon]),
+) as Record<AssetType, string>

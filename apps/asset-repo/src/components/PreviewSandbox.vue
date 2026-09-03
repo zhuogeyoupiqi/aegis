@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useStore, type ImportMap, type ReplStore } from '@vue/repl'
 import type { SFCScriptCompileOptions } from 'vue/compiler-sfc'
 import { lastThemeSnapshot, toast } from '@aegis/shared'
+import AppIcon from '@/components/AppIcon.vue'
 import type { AssetDep, AssetFile, AssetItem } from '@/api/types'
 import { resolveImport, knownBundled, bundledFile, bundledSubpaths } from '@/composables/useDepScan'
 
@@ -43,7 +44,8 @@ const Sandbox = defineAsyncComponent(async () => {
  *   探测"成功"不代表 iframe 的原生模块加载器也能命中——URL 本身对才是根治
  * - dev 直连子应用与 prod（BASE_URL=/child/asset-repo/）下两者等价，统一走此式
  */
-const DEPS_BASE = new URL(import.meta.url).origin + import.meta.env.BASE_URL + 'repl-deps/'
+const baseUrl = (import.meta.env.BASE_URL || '/').replace(/\/$/, '') + '/'
+const DEPS_BASE = new URL(import.meta.url).origin + baseUrl + 'repl-deps/'
 
 /** HEAD 探测缓存：每个 PreviewSandbox 实例独立一份，避免多实例互相污染 */
 const probeCache = new Map<string, boolean>()
@@ -169,7 +171,18 @@ function toReplFiles(files: AssetFile[]): Record<string, string> {
 
 const ready = ref(false)
 const loadError = ref<string | null>(null)
+const showErrorDetail = ref(false)
 const compileErrors = computed(() => store.errors.map((e) => String(e)).filter(Boolean))
+
+async function retry(): Promise<void> {
+  await loadItem(props.item)
+}
+
+function copyError(): void {
+  const text = loadError.value || compileErrors.value.join('\n\n')
+  if (!text) return
+  navigator.clipboard.writeText(text).catch(() => {})
+}
 
 // builtinImportMap 先给空表（vue 映射在异步探测后 merge 进来）：默认表指 jsdelivr，
 // 内网首帧就会报加载失败。resourceLinks 把 es-module-shims 换成自托管产物。
@@ -233,37 +246,80 @@ async function loadItem(item: AssetItem): Promise<void> {
 onMounted(() => void loadItem(props.item))
 // 切换资产或同资产内容变化（文件/依赖/入口）都重载预览
 watch(
-  () => props.item,
-  (cur, prev) => {
-    if (!cur.id) return
-    if (
-      cur.id !== prev?.id ||
-      cur.files !== prev.files ||
-      cur.deps !== prev.deps ||
-      cur.entry !== prev.entry
-    ) {
-      void loadItem(cur)
-    }
+  () => ({
+    id: props.item.id,
+    entry: props.item.entry,
+    files: props.item.files.map((f) => f.code).join('\x00'),
+    deps: props.item.deps.map((d) => `${d.name}@${d.version}:${d.source}`).join(','),
+  }),
+  () => {
+    if (!props.item.id) return
+    void loadItem(props.item)
   },
-  { deep: true },
 )
 </script>
 
 <template>
   <div class="sandbox">
-    <!-- 假浏览器外壳：交通灯 + 沙箱地址栏 + 运行中徽标（与原型一致的视觉锚点） -->
+    <!-- 简化版浏览器 chrome：文件名 + 运行状态 + 刷新/重试 -->
     <div class="sandbox__chrome">
-      <span class="dots"><i class="dot red" /><i class="dot yellow" /><i class="dot green" /></span>
-      <span class="addr">sandbox://{{ item.entry }}</span>
-      <span class="running"><i />{{ t('repo.previewRunning') }}</span>
+      <div class="chrome-left">
+        <span class="status-dot" :class="{ running: ready }" />
+        <span class="filename">{{ item.entry ?? item.files[0]?.path ?? '—' }}</span>
+      </div>
+      <div class="chrome-right">
+        <button v-if="loadError" class="btn btn-sm btn-danger-outline" @click="retry">
+          <AppIcon name="refresh" :size="11" />
+          {{ t('repo.previewRetry') }}
+        </button>
+        <span v-else-if="ready" class="status-text running-text">
+          <AppIcon name="play" :size="10" />
+          {{ t('repo.previewRunning') }}
+        </span>
+      </div>
     </div>
 
     <div class="sandbox__stage">
-      <a-spin v-if="!ready && !loadError" class="sandbox__spin" :tip="t('repo.previewLoading')" />
-      <!-- 加载期异常（依赖探测、import map、setFiles 失败）：给出可读错误而不是 spinner 挂死 -->
-      <pre v-else-if="loadError" class="sandbox__errors">{{ loadError }}</pre>
-      <!-- 编译错误面板：Sandbox 只显示运行时错误，编译错误在 store.errors -->
-      <pre v-else-if="compileErrors.length" class="sandbox__errors">{{ compileErrors.join('\n\n') }}</pre>
+      <a-spin v-if="!ready && !loadError" class="sandbox__spin" :spinning="true" :tip="t('repo.previewLoading')" />
+
+      <!-- 加载期异常：结构化错误面板 -->
+      <div v-else-if="loadError" class="error-panel">
+        <div class="error-panel__head">
+          <AppIcon name="alertCircle" :size="18" />
+          <span>{{ t('repo.previewLoadFailed') }}</span>
+        </div>
+        <p class="error-panel__summary">{{ loadError }}</p>
+        <div class="error-panel__actions">
+          <button class="btn btn-default btn-sm" @click="showErrorDetail = !showErrorDetail">
+            {{ showErrorDetail ? t('repo.previewHideDetail') : t('repo.previewShowDetail') }}
+          </button>
+          <button class="btn btn-default btn-sm" @click="copyError">
+            <AppIcon name="copy" :size="11" />
+            {{ t('repo.previewCopyError') }}
+          </button>
+          <button class="btn btn-primary btn-sm" @click="retry">
+            <AppIcon name="refresh" :size="11" />
+            {{ t('repo.previewRetry') }}
+          </button>
+        </div>
+        <pre v-if="showErrorDetail" class="error-panel__detail">{{ loadError }}</pre>
+      </div>
+
+      <!-- 编译错误面板 -->
+      <div v-else-if="compileErrors.length" class="error-panel">
+        <div class="error-panel__head">
+          <AppIcon name="alertCircle" :size="18" />
+          <span>{{ t('repo.previewCompileFailed') }}</span>
+        </div>
+        <pre class="error-panel__detail">{{ compileErrors.join('\n\n') }}</pre>
+        <div class="error-panel__actions">
+          <button class="btn btn-default btn-sm" @click="copyError">
+            <AppIcon name="copy" :size="11" />
+            {{ t('repo.previewCopyError') }}
+          </button>
+        </div>
+      </div>
+
       <Sandbox v-else :store="store" :theme="previewTheme" />
     </div>
   </div>
@@ -273,77 +329,84 @@ watch(
 .sandbox {
   display: flex;
   flex-direction: column;
+  // 父级 .code-stage__body 现在是 flex 容器，用 flex:1 占满比 height:100% 更可靠：
+  // height:100% 在父级 height 为 auto 的 flex item 里会失效，导致 iframe 高度为 0。
+  flex: 1;
+  min-height: 0;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   overflow: hidden;
-  background: #fff;
+  background: var(--bg-card);
 }
 
 .sandbox__chrome {
   flex: none;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
-  height: 34px;
+  height: 38px;
   padding: 0 12px;
   border-bottom: 1px solid var(--border);
-  background: var(--bg-deep, var(--bg-input));
+  background: var(--bg-input);
 
-  .dots {
+  .chrome-left {
     display: inline-flex;
-    gap: 6px;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
   }
 
-  .dot {
-    width: 10px;
-    height: 10px;
+  .chrome-right {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .status-dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
-    &.red { background: #fd5257; }
-    &.yellow { background: #f7ba1e; }
-    &.green { background: #55c51e; }
+    background: var(--fg-muted);
+
+    &.running {
+      background: var(--preview-running);
+      animation: pulse 1.6s ease-in-out infinite;
+    }
   }
 
-  .addr {
+  .filename {
     flex: 1;
     min-width: 0;
     font-family: var(--font-mono);
-    font-size: 11.5px;
-    color: var(--fg-muted);
+    font-size: 12px;
+    color: var(--fg-sub);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 2px 12px;
   }
 
-  .running {
-    flex: none;
+  .status-text {
     display: inline-flex;
     align-items: center;
     gap: 5px;
     font-size: 11px;
-    color: #389e0d;
+    color: var(--fg-muted);
 
-    i {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #55c51e;
-      // 呼吸点：静态绿色圆点不够"活着"
-      animation: pulse 1.6s ease-in-out infinite;
+    &.running-text {
+      color: var(--type-function);
     }
   }
 }
 
 .sandbox__stage {
   flex: 1;
-  min-height: 420px;
+  min-height: 0;
   position: relative;
 
   // repl 预览是普通文档流 iframe，占满舞台。不能走百分比高度链：
-  // stage 的高度来自 flex:1 + min-height（height 属性是 auto），规范上子元素
+  // stage 的高度来自 flex:1 + min-height:0（height 属性是 auto），规范上子元素
   // height:100% 参照 auto 父级会失效 → container/iframe 双双回落默认 150px。
   // 改绝对定位铺满（stage 已 position:relative，spin 同款手法），一劳永逸
   :deep(.iframe-container) {
@@ -367,17 +430,52 @@ watch(
   justify-content: center;
 }
 
-.sandbox__errors {
-  margin: 0;
-  padding: 16px;
-  max-height: 420px;
-  overflow: auto;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.6;
-  color: #d5445c;
-  background: #fff5f6;
-  white-space: pre-wrap;
+.error-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  color: var(--fg-sub);
+
+  &__head {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--sev-critical);
+
+    :deep(svg) {
+      color: var(--sev-critical);
+    }
+  }
+
+  &__summary {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__detail {
+    margin: 0;
+    padding: 12px;
+    max-height: 260px;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: var(--sev-critical);
+    background: color-mix(in srgb, var(--sev-critical) 6%, transparent);
+    border: 1px solid color-mix(in srgb, var(--sev-critical) 20%, transparent);
+    border-radius: var(--radius-sm);
+    white-space: pre-wrap;
+  }
 }
 
 @keyframes pulse {

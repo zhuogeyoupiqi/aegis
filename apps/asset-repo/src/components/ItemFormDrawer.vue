@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { toast } from '@aegis/shared'
 import type { FormInstance } from 'ant-design-vue'
 import AppIcon from '@/components/AppIcon.vue'
 import FileTree from '@/components/FileTree.vue'
+import CodeEditor from '@/components/CodeEditor.vue'
 import { useAssetRepo } from '@/composables/useAssetRepo'
 import { ingestPicked, pickedFromDataTransfer, pickedFromFileList, langFromPath } from '@/composables/useFolderIngest'
 import { scanDeps } from '@/composables/useDepScan'
@@ -12,11 +13,8 @@ import type { AssetDep, AssetFile, AssetType, ItemSavePayload } from '@/api/type
 
 /**
  * 新建 / 编辑资产的表单抽屉。
- * 开关与编辑目标直接读写 useAssetRepo 单例（drawerOpen / editing），
- * 提交走 composable 的 submit：失败时抽屉保持打开，用户改完再交。
- *
- * V2 文件区：工具条（新文件 / 导入文件夹 / 扫描依赖）+ 文件树 + 当前文件编辑器，
- * 整个区域可拖放目录（webkitGetAsEntry 递归展开）。
+ * V3 交互：扩宽抽屉 + 标签页分区（元信息 / 文件 / 依赖），
+ * 让文件编辑有稳定空间，避免长表单滚动迷失。
  */
 const { t } = useI18n()
 const { drawerOpen, editing, saving, closeDrawer, submit } = useAssetRepo()
@@ -24,8 +22,24 @@ const { drawerOpen, editing, saving, closeDrawer, submit } = useAssetRepo()
 const formRef = ref<FormInstance>()
 const dirInputRef = ref<HTMLInputElement>()
 
+/** 当前激活的标签页 */
+const tab = ref<'meta' | 'files' | 'deps'>('meta')
+
 /** 语言选项 = Shiki 已装载的语法集（见 useShiki 的 LANGS），选了就一定有高亮 */
-const LANG_OPTIONS = ['ts', 'javascript', 'vue', 'java', 'python', 'go', 'sql', 'bash', 'json', 'yaml', 'md', 'text']
+const LANG_OPTIONS = [
+  { label: 'TypeScript', value: 'ts' },
+  { label: 'JavaScript', value: 'javascript' },
+  { label: 'Vue', value: 'vue' },
+  { label: 'Java', value: 'java' },
+  { label: 'Python', value: 'python' },
+  { label: 'Go', value: 'go' },
+  { label: 'SQL', value: 'sql' },
+  { label: 'Bash', value: 'bash' },
+  { label: 'JSON', value: 'json' },
+  { label: 'YAML', value: 'yaml' },
+  { label: 'Markdown', value: 'md' },
+  { label: 'Plain text', value: 'text' },
+]
 
 const ASSET_TYPES: AssetType[] = ['snippet', 'component', 'function', 'doc', 'link']
 const typeOptions = computed(() => ASSET_TYPES.map((v) => ({ label: t(`repo.types.${v}`), value: v })))
@@ -44,17 +58,15 @@ const formState = reactive({
 const files = ref<AssetFile[]>([])
 const deps = ref<AssetDep[]>([])
 const entry = ref<string | null>(null)
-const activePath = ref<string | null>(null)
+const activeIndex = ref(0)
 const dragging = ref(false)
 const busy = ref(false)
+const dragCounter = ref(0)
 
-const activeIdx = computed(() => files.value.findIndex((f) => f.path === activePath.value))
-const activeFile = computed<AssetFile | null>(() => (activeIdx.value === -1 ? null : files.value[activeIdx.value]))
-
-/** 预览入口候选：只列 .vue（入口语义是"沙箱从这个组件启动渲染"） */
-const entryOptions = computed(() =>
-  files.value.filter((f) => f.path.endsWith('.vue')).map((f) => ({ label: f.path, value: f.path })),
-)
+/** 当前编辑的文件对象：用索引定位，重命名时对象本身不变，避免输入框闪失 */
+const activeFile = computed<AssetFile | null>(() => files.value[activeIndex.value] ?? null)
+/** 文件树高亮 key：从 activeFile 派生，始终与当前编辑文件路径一致 */
+const activePath = computed(() => activeFile.value?.path ?? null)
 
 const rules = computed(() => ({
   name: [{ required: true, message: t('repo.form.nameRequired'), trigger: 'blur' }],
@@ -68,7 +80,7 @@ const isCodeType = computed(() => ['snippet', 'component', 'function'].includes(
 // 每次打开重置表单：编辑态回填原值，新建态重默认值
 watch(drawerOpen, (open) => {
   if (!open) return
-  formRef.value?.resetFields()
+  tab.value = 'meta'
   const src = editing.value
   Object.assign(formState, {
     name: src?.name ?? '',
@@ -81,7 +93,13 @@ watch(drawerOpen, (open) => {
   files.value = src ? src.files.map((f) => ({ ...f })) : [newFile('index.ts')]
   deps.value = src ? src.deps.map((d) => ({ ...d })) : []
   entry.value = src?.entry ?? null
-  activePath.value = entry.value ?? files.value[0]?.path ?? null
+  // 默认选中入口文件；没有入口则选中第一个文件
+  const entryIdx = files.value.findIndex((f) => f.path === entry.value)
+  activeIndex.value = entryIdx >= 0 ? entryIdx : 0
+  // 先赋值再清校验，避免 resetFields 把值闪回空
+  nextTick(() => {
+    formRef.value?.clearValidate()
+  })
 })
 
 /** 类型切换时把语言带到位：doc → md、link → text（提交时会被置空），代码类保持用户所选 */
@@ -99,10 +117,17 @@ function newFile(path: string): AssetFile {
 
 /* ---------- 文件区动作 ---------- */
 
+function uniqueFileName(): string {
+  let idx = 1
+  while (files.value.some((f) => f.path === `file-${idx}.ts`)) idx++
+  return `file-${idx}.ts`
+}
+
 function addFile(): void {
-  const f = newFile(`file-${files.value.length + 1}.ts`)
+  const f = newFile(uniqueFileName())
   files.value.push(f)
-  activePath.value = f.path
+  activeIndex.value = files.value.length - 1
+  tab.value = 'files'
 }
 
 function removeFile(path: string): void {
@@ -110,21 +135,22 @@ function removeFile(path: string): void {
   if (idx === -1) return
   files.value.splice(idx, 1)
   if (entry.value === path) entry.value = null
-  if (activePath.value === path) activePath.value = files.value[Math.max(0, idx - 1)]?.path ?? null
+  // 删除的是当前活动文件：优先前移；否则保持当前索引（Vue 会自动对应到新数组）
+  if (activeIndex.value === idx) {
+    activeIndex.value = Math.max(0, idx - 1)
+  } else if (activeIndex.value > idx) {
+    activeIndex.value--
+  }
 }
 
-/** 路径编辑后同步语言探测，并同步 activePath，避免改名后文件树高亮丢失 */
+/** 当前文件路径变化时自动探测语言，保持编辑器高亮正确 */
 watch(
   () => activeFile.value?.path,
-  (p, prev) => {
+  (p) => {
     const f = activeFile.value
     if (!f || !p) return
     const lang = langFromPath(p)
     if (lang) f.lang = lang
-    // 当前活动文件被重命名时，把选中 key 一起迁到新路径，否则树高亮与后续切回都会失效
-    if (prev && activePath.value === prev) {
-      activePath.value = p
-    }
   },
 )
 
@@ -140,6 +166,25 @@ async function ingestFromDrop(ev: DragEvent): Promise<void> {
   await runIngest(await pickedFromDataTransfer(ev.dataTransfer))
 }
 
+function onDragEnter(): void {
+  dragCounter.value++
+  dragging.value = true
+}
+
+function onDragLeave(): void {
+  dragCounter.value--
+  if (dragCounter.value <= 0) {
+    dragging.value = false
+    dragCounter.value = 0
+  }
+}
+
+function onDrop(ev: DragEvent): void {
+  dragging.value = false
+  dragCounter.value = 0
+  ingestFromDrop(ev)
+}
+
 async function runIngest(picked: { path: string; file: File }[]): Promise<void> {
   if (!picked.length) return
   busy.value = true
@@ -149,7 +194,12 @@ async function runIngest(picked: { path: string; file: File }[]): Promise<void> 
     for (const f of got) byPath.set(f.path, f) // 后到覆盖：同名文件视为编辑
     files.value = [...byPath.values()]
     if (!entry.value) entry.value = got.find((f) => f.path.endsWith('.vue'))?.path ?? null
-    if (!activePath.value || !byPath.has(activePath.value)) activePath.value = entry.value ?? files.value[0]?.path ?? null
+    // 导入后如果当前活动文件不在新清单里，优先切到入口文件
+    const curPath = activePath.value
+    if (!curPath || !byPath.has(curPath)) {
+      const fallbackIdx = files.value.findIndex((f) => f.path === entry.value)
+      activeIndex.value = fallbackIdx >= 0 ? fallbackIdx : 0
+    }
     if (skipped.length) {
       toast(t('repo.form.ingested', { n: got.length, m: skipped.length }), 'info')
     }
@@ -167,6 +217,23 @@ function runScan(): void {
   if (broken.length) toast(t('repo.form.brokenImports', { n: broken.length }), 'info')
 }
 
+/** 把当前文件设为预览入口：只有 .vue 文件才能作为沙箱启动点 */
+function setEntry(path: string): void {
+  if (path.endsWith('.vue')) {
+    entry.value = path
+  }
+}
+
+/* ---------- 依赖编辑 ---------- */
+
+function addDep(): void {
+  deps.value.push({ name: '', version: '', source: 'bundled' })
+}
+
+function removeDep(i: number): void {
+  deps.value.splice(i, 1)
+}
+
 /* ---------- 提交 ---------- */
 
 async function onSubmit(): Promise<void> {
@@ -176,6 +243,7 @@ async function onSubmit(): Promise<void> {
   if (formState.type !== 'link') {
     if (!files.value.length) {
       toast(t('repo.form.filesRequired'), 'bad')
+      tab.value = 'files'
       return
     }
     const bad = files.value.find(
@@ -183,6 +251,7 @@ async function onSubmit(): Promise<void> {
     )
     if (bad) {
       toast(t('repo.form.pathInvalid', { path: bad.path || '(空)' }), 'bad')
+      tab.value = 'files'
       return
     }
     if (entry.value && !files.value.some((f) => f.path === entry.value)) {
@@ -190,9 +259,10 @@ async function onSubmit(): Promise<void> {
       return
     }
   }
-  const noVersion = deps.value.find((d) => !d.version.trim())
+  const noVersion = deps.value.find((d) => d.name.trim() && !d.version.trim())
   if (noVersion) {
     toast(t('repo.form.depVersionRequired', { name: noVersion.name }), 'bad')
+    tab.value = 'deps'
     return
   }
 
@@ -204,7 +274,7 @@ async function onSubmit(): Promise<void> {
     url: formState.type === 'link' ? formState.url.trim() : undefined,
     entry: formState.type !== 'link' ? entry.value ?? undefined : undefined,
     files: formState.type === 'link' ? [] : files.value.map((f) => ({ ...f, path: f.path.trim() })),
-    deps: formState.type === 'link' ? [] : deps.value.map((d) => ({ ...d })),
+    deps: formState.type === 'link' ? [] : deps.value.filter((d) => d.name.trim()).map((d) => ({ ...d })),
     tags: formState.tags,
   }
   await submit(payload)
@@ -215,141 +285,272 @@ async function onSubmit(): Promise<void> {
   <a-drawer
     :open="drawerOpen"
     :title="editing ? t('repo.form.editTitle') : t('repo.form.createTitle')"
-    width="min(680px, 94vw)"
+    width="min(900px, 96vw)"
     destroy-on-close
+    :footer="null"
     @close="closeDrawer"
   >
-    <a-form ref="formRef" :model="formState" :rules="rules" layout="vertical" class="item-form">
-      <a-form-item :label="t('repo.form.name')" name="name">
-        <a-input v-model:value="formState.name" :placeholder="t('repo.form.namePlaceholder')" allow-clear />
-      </a-form-item>
+    <!-- 顶部标签页：元信息 / 文件 / 依赖 -->
+    <div class="drawer-tabs">
+      <button class="drawer-tab" :class="{ active: tab === 'meta' }" @click="tab = 'meta'">
+        <AppIcon name="sliders" :size="12" />
+        {{ t('repo.form.formTabMeta') }}
+      </button>
+      <button class="drawer-tab" :class="{ active: tab === 'files' }" @click="tab = 'files'">
+        <AppIcon name="folder" :size="12" />
+        {{ t('repo.form.formTabFiles') }}
+      </button>
+      <button class="drawer-tab" :class="{ active: tab === 'deps' }" @click="tab = 'deps'">
+        <AppIcon name="pkg" :size="12" />
+        {{ t('repo.form.formTabDeps') }}
+      </button>
+    </div>
 
-      <div class="form-grid">
-        <a-form-item :label="t('repo.form.type')" name="type">
-          <a-select v-model:value="formState.type" :options="typeOptions" />
+    <div class="drawer-content">
+      <!-- 元信息标签 -->
+      <a-form v-show="tab === 'meta'" ref="formRef" :model="formState" :rules="rules" layout="vertical" class="item-form">
+        <a-form-item :label="t('repo.form.name')" name="name">
+          <a-input v-model:value="formState.name" :placeholder="t('repo.form.namePlaceholder')" allow-clear />
         </a-form-item>
-        <a-form-item v-if="isCodeType" :label="t('repo.form.lang')" name="lang">
-          <a-select v-model:value="formState.lang" :options="LANG_OPTIONS.map((v) => ({ value: v }))" />
+
+        <div class="form-grid">
+          <a-form-item :label="t('repo.form.type')" name="type">
+            <a-select v-model:value="formState.type" :options="typeOptions" />
+          </a-form-item>
+          <a-form-item v-if="isCodeType" :label="t('repo.form.lang')" name="lang">
+            <a-select v-model:value="formState.lang" :options="LANG_OPTIONS" />
+          </a-form-item>
+        </div>
+
+        <a-form-item :label="t('repo.form.tags')" name="tags" :extra="t('repo.form.tagsHint')">
+          <a-select
+            v-model:value="formState.tags"
+            mode="tags"
+            :placeholder="t('repo.form.tagsPlaceholder')"
+            :open="false"
+            :token-separators="[',', ' ']"
+          />
         </a-form-item>
-      </div>
 
-      <a-form-item :label="t('repo.form.tags')" name="tags" :extra="t('repo.form.tagsHint')">
-        <a-select
-          v-model:value="formState.tags"
-          mode="tags"
-          :placeholder="t('repo.form.tagsPlaceholder')"
-          :open="false"
-          :token-separators="[',', ' ']"
-        />
-      </a-form-item>
+        <a-form-item v-if="formState.type === 'link'" :label="t('repo.form.url')" name="url">
+          <a-input v-model:value="formState.url" placeholder="https://…" allow-clear />
+        </a-form-item>
 
-      <!-- link：只收 URL；其余类型走文件区 -->
-      <a-form-item v-if="formState.type === 'link'" :label="t('repo.form.url')" name="url">
-        <a-input v-model:value="formState.url" placeholder="https://…" allow-clear />
-      </a-form-item>
+        <a-form-item :label="t('repo.form.description')" name="description">
+          <a-textarea v-model:value="formState.description" :rows="3" :placeholder="t('repo.form.descriptionPlaceholder')" />
+        </a-form-item>
+      </a-form>
 
-      <template v-else>
-        <a-form-item :label="t('repo.form.files')" name="files">
-          <!-- 拖放热区：整个文件区（含树与编辑器）都是 drop 目标 -->
-          <div
-            class="files-zone"
-            :class="{ dragging }"
-            @dragover.prevent="dragging = true"
-            @dragleave="dragging = false"
-            @drop.prevent="dragging = false; ingestFromDrop($event)"
-          >
-            <div class="files-toolbar">
-              <a-button size="small" @click="addFile">
-                <template #icon><AppIcon name="plus" :size="12" /></template>
-                {{ t('repo.form.addFile') }}
-              </a-button>
-              <a-button size="small" @click="dirInputRef?.click()">
-                <template #icon><AppIcon name="upload" :size="12" /></template>
-                {{ t('repo.form.importFolder') }}
-              </a-button>
-              <a-button size="small" @click="runScan">
-                <template #icon><AppIcon name="pkg" :size="12" /></template>
-                {{ t('repo.form.scanDeps') }}
-              </a-button>
-              <!-- webkitdirectory 是非标属性，Vue 模板里用 DOM 属性绑定绕过类型检查 -->
-              <input ref="dirInputRef" type="file" class="hidden-input" webkitdirectory @change="ingestFromInput" />
-              <span class="drop-hint">{{ t('repo.form.dropHint') }}</span>
-            </div>
+      <!-- 文件标签 -->
+      <div v-show="tab === 'files' && formState.type !== 'link'" class="files-tab">
+        <div
+          class="files-zone"
+          :class="{ dragging }"
+          @dragover.prevent
+          @dragenter.prevent="onDragEnter"
+          @dragleave.prevent="onDragLeave"
+          @drop.prevent="onDrop($event)"
+        >
+          <div class="files-toolbar">
+            <button class="btn btn-default btn-sm" @click="addFile">
+              <AppIcon name="plus" :size="12" />
+              {{ t('repo.form.addFile') }}
+            </button>
+            <button class="btn btn-default btn-sm" @click="dirInputRef?.click()">
+              <AppIcon name="upload" :size="12" />
+              {{ t('repo.form.importFolder') }}
+            </button>
+            <button class="btn btn-default btn-sm" @click="runScan">
+              <AppIcon name="pkg" :size="12" />
+              {{ t('repo.form.scanDeps') }}
+            </button>
+            <input ref="dirInputRef" type="file" class="hidden-input" webkitdirectory @change="ingestFromInput" />
+            <span class="drop-hint">{{ t('repo.form.dropHint') }}</span>
+          </div>
 
-            <a-spin :spinning="busy" size="small">
-              <div class="files-split">
-                <div class="files-tree">
-                  <FileTree
-                    :files="files"
-                    :active-path="activePath"
-                    :entry="entry"
-                    removable
-                    @select="(p) => (activePath = p)"
-                    @remove="removeFile"
-                  />
-                </div>
-                <div v-if="activeFile" class="files-editor">
+          <a-spin :spinning="busy" size="small">
+            <div class="files-split">
+              <div class="files-tree">
+                <FileTree
+                  :files="files"
+                  :active-path="activePath"
+                  :entry="entry"
+                  removable
+                  @select="(p) => (activeIndex = files.findIndex((f: AssetFile) => f.path === p))"
+                  @remove="removeFile"
+                />
+              </div>
+              <div v-if="activeFile" class="files-editor">
+                <div class="editor-head">
                   <input
                     v-model="activeFile.path"
                     class="path-input"
                     :placeholder="t('repo.form.pathPlaceholder')"
                     spellcheck="false"
                   />
-                  <textarea
-                    v-model="activeFile.code"
-                    class="code-input"
-                    :placeholder="t('repo.form.contentPlaceholder')"
-                    spellcheck="false"
-                  />
+                  <a-tooltip v-if="activeFile.path.endsWith('.vue')" :title="t('repo.form.setEntry')">
+                    <button
+                      class="btn btn-icon"
+                      :class="entry === activeFile.path ? 'btn-primary' : 'btn-default'"
+                      type="button"
+                      @click="setEntry(activeFile.path)"
+                    >
+                      <AppIcon name="play" :size="11" />
+                    </button>
+                  </a-tooltip>
+                </div>
+                <div class="editor-body">
+                  <CodeEditor v-model="activeFile.code" :lang="activeFile.lang" :placeholder="t('repo.form.contentPlaceholder')" />
                 </div>
               </div>
-            </a-spin>
-          </div>
-        </a-form-item>
-
-        <a-form-item
-          v-if="entryOptions.length"
-          :label="t('repo.form.entry')"
-          name="entry"
-          :extra="t('repo.form.entryHint')"
-        >
-          <a-select v-model:value="entry" :options="entryOptions" allow-clear :placeholder="t('repo.form.entryPlaceholder')" />
-        </a-form-item>
-
-        <a-form-item :label="t('repo.form.depsTitle')" name="deps" :extra="t('repo.form.depsHint')">
-          <div class="dep-rows">
-            <div v-for="(dep, i) in deps" :key="dep.name" class="dep-row">
-              <span class="dep-name">{{ dep.name }}</span>
-              <input v-model="dep.version" class="dep-input" :placeholder="t('repo.form.version')" spellcheck="false" />
-              <a-select v-model:value="dep.source" size="small" class="dep-source" :options="[
-                { label: t('repo.depBundled'), value: 'bundled' },
-                { label: t('repo.depCdn'), value: 'cdn' },
-              ]" />
-              <span class="dep-remove" role="button" @click="deps.splice(i, 1)"><AppIcon name="x" :size="11" /></span>
+              <div v-else class="files-editor-empty">
+                <AppIcon name="fileText" :size="32" />
+                <p>{{ t('repo.form.noFileSelected') }}</p>
+              </div>
             </div>
-            <p v-if="!deps.length" class="dep-empty">{{ t('repo.depsEmpty') }}</p>
-          </div>
-        </a-form-item>
-      </template>
-
-      <a-form-item :label="t('repo.form.description')" name="description">
-        <a-textarea v-model:value="formState.description" :rows="2" :placeholder="t('repo.form.descriptionPlaceholder')" />
-      </a-form-item>
-    </a-form>
-
-    <template #footer>
-      <div class="drawer-footer">
-        <a-button @click="closeDrawer">{{ t('repo.form.cancel') }}</a-button>
-        <a-button type="primary" :loading="saving" @click="onSubmit">
-          <template #icon><AppIcon name="save" :size="13" /></template>
-          {{ t('repo.form.submit') }}
-        </a-button>
+          </a-spin>
+        </div>
       </div>
-    </template>
+
+      <div v-if="tab === 'files' && formState.type === 'link'" class="tab-empty">
+        <AppIcon name="link" :size="32" />
+        <p>{{ t('repo.form.linkNoFiles') }}</p>
+      </div>
+
+      <!-- 依赖标签 -->
+      <div v-show="tab === 'deps' && formState.type !== 'link'" class="deps-tab">
+        <div class="deps-toolbar">
+          <button class="btn btn-default btn-sm" @click="runScan">
+            <AppIcon name="pkg" :size="12" />
+            {{ t('repo.form.scanDeps') }}
+          </button>
+          <button class="btn btn-ghost btn-sm" @click="addDep">
+            <AppIcon name="plus" :size="12" />
+            {{ t('repo.form.addDep') }}
+          </button>
+          <span class="deps-hint">{{ t('repo.form.depsHint') }}</span>
+        </div>
+        <div class="dep-rows">
+          <div v-for="(dep, i) in deps" :key="`${dep.name}-${i}`" class="dep-row">
+            <input v-model="dep.name" class="dep-input dep-name" placeholder="package-name" spellcheck="false" />
+            <input v-model="dep.version" class="dep-input dep-version" :placeholder="t('repo.form.version')" spellcheck="false" />
+            <a-select v-model:value="dep.source" size="small" class="dep-source" :options="[
+              { label: t('repo.depBundled'), value: 'bundled' },
+              { label: t('repo.depCdn'), value: 'cdn' },
+            ]" />
+            <button type="button" class="btn btn-icon btn-danger-outline" :title="t('repo.form.removeDep')" @click="removeDep(i)">
+              <AppIcon name="x" :size="11" />
+            </button>
+          </div>
+          <p v-if="!deps.length" class="dep-empty">{{ t('repo.depsEmpty') }}</p>
+        </div>
+      </div>
+
+      <div v-if="tab === 'deps' && formState.type === 'link'" class="tab-empty">
+        <AppIcon name="link" :size="32" />
+        <p>{{ t('repo.form.linkNoDeps') }}</p>
+      </div>
+    </div>
+
+    <div class="drawer-footer">
+      <button class="btn btn-default" @click="closeDrawer">{{ t('repo.form.cancel') }}</button>
+      <button class="btn btn-primary" :disabled="saving" @click="onSubmit">
+        <AppIcon name="save" :size="13" />
+        {{ t('repo.form.submit') }}
+      </button>
+    </div>
   </a-drawer>
 </template>
 
 <style scoped lang="less">
+.drawer-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  margin-bottom: 16px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  width: fit-content;
+}
+
+.drawer-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--ease);
+
+  &:hover {
+    color: var(--fg-sub);
+  }
+
+  &.active {
+    color: var(--fg);
+    background: var(--bg-card);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+}
+
+.drawer-content {
+  min-height: 420px;
+}
+
+:deep(.ant-drawer-body) {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+}
+
+:deep(.ant-drawer-header) {
+  border-bottom: 1px solid var(--border);
+}
+
+:deep(.ant-drawer-title) {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--fg);
+}
+
+.item-form {
+  :deep(.ant-form-item-label > label) {
+    font-size: 12px;
+    color: var(--fg-sub);
+    height: auto;
+  }
+
+  :deep(.ant-form-item-extra) {
+    font-size: 11px;
+    color: var(--fg-muted);
+    padding-top: 4px;
+  }
+
+  :deep(.ant-input),
+  :deep(.ant-select-selector),
+  :deep(.ant-input-affix-wrapper) {
+    background: var(--bg-input);
+    border-color: transparent;
+    color: var(--fg);
+  }
+
+  :deep(.ant-input::placeholder),
+  :deep(.ant-select-selection-placeholder) {
+    color: var(--fg-muted);
+  }
+
+  :deep(.ant-form-item) {
+    margin-bottom: 16px;
+  }
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -364,10 +565,18 @@ async function onSubmit(): Promise<void> {
   display: none;
 }
 
+.files-tab,
+.deps-tab {
+  height: 100%;
+}
+
 .files-zone {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   border: 1px dashed var(--border);
-  border-radius: 8px;
-  padding: 10px;
+  border-radius: var(--radius-md);
+  padding: 12px;
   transition: border-color var(--ease);
 
   &.dragging {
@@ -377,11 +586,12 @@ async function onSubmit(): Promise<void> {
 }
 
 .files-toolbar {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 
   .drop-hint {
     margin-left: auto;
@@ -391,10 +601,11 @@ async function onSubmit(): Promise<void> {
 }
 
 .files-split {
+  flex: 1;
   display: grid;
   grid-template-columns: 200px minmax(0, 1fr);
-  gap: 10px;
-  min-height: 260px;
+  gap: 12px;
+  min-height: 360px;
 
   @media (max-width: 560px) {
     grid-template-columns: 1fr;
@@ -402,29 +613,66 @@ async function onSubmit(): Promise<void> {
 }
 
 .files-tree {
+  background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px;
-  max-height: 300px;
+  border-radius: var(--radius-sm);
+  padding: 6px;
   overflow-y: auto;
 }
 
 .files-editor {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-card);
 }
 
-.path-input,
-.code-input,
-.dep-input {
+.editor-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-input);
+}
+
+.editor-body {
+  flex: 1;
+  min-height: 260px;
+  overflow: hidden;
+}
+
+.files-editor-empty,
+.tab-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--fg-muted);
+  min-height: 260px;
+
+  p {
+    margin: 0;
+    font-size: 12.5px;
+  }
+}
+
+.path-input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
   font-family: var(--font-mono);
   font-size: 12.5px;
   color: var(--fg);
   background: var(--bg-input);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   transition: border-color var(--ease);
 
   &:focus {
@@ -433,81 +681,89 @@ async function onSubmit(): Promise<void> {
   }
 }
 
-.path-input {
-  height: 30px;
-  padding: 0 10px;
-}
+.deps-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
 
-.code-input {
-  flex: 1;
-  min-height: 220px;
-  padding: 10px 12px;
-  line-height: 1.6;
-  resize: vertical;
+  .deps-hint {
+    margin-left: auto;
+    font-size: 11.5px;
+    color: var(--fg-muted);
+  }
 }
 
 .dep-rows {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .dep-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 32px;
+  height: 40px;
+  padding: 0 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+
+  .dep-input {
+    height: 28px;
+    padding: 0 8px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--fg);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border-color var(--ease);
+
+    &:focus {
+      border-color: var(--primary);
+    }
+  }
 
   .dep-name {
     flex: 1;
     min-width: 0;
-    font-family: var(--font-mono);
-    font-size: 12.5px;
-    color: var(--fg-sub);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
-  .dep-input {
-    width: 110px;
-    height: 28px;
-    padding: 0 8px;
+  .dep-version {
+    width: 120px;
+    flex: none;
   }
 
   .dep-source {
-    width: 96px;
+    width: 100px;
     flex: none;
-  }
-
-  .dep-remove {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 4px;
-    color: var(--fg-muted);
-    cursor: pointer;
-    transition: all var(--ease);
-
-    &:hover {
-      color: #fd5257;
-      background: rgba(253, 82, 87, 0.1);
-    }
   }
 }
 
 .dep-empty {
   margin: 0;
-  font-size: 11.5px;
+  padding: 20px 0;
+  text-align: center;
+  font-size: 12px;
   color: var(--fg-muted);
 }
 
 .drawer-footer {
+  flex: none;
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+// antd drawer 本身没有 footer 插槽时，底部操作区通过 margin-top:auto 贴底
+:deep(.ant-drawer-content) {
+  display: flex;
+  flex-direction: column;
 }
 </style>

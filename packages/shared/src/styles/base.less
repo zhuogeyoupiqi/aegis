@@ -67,7 +67,20 @@ button { font-family: inherit; }
     }
   }
 
+  &-ghost {
+    background: transparent; color: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+
+    &:hover {
+      background: color-mix(in srgb, var(--primary) 7%, transparent);
+      color: var(--primary);
+      border-color: color-mix(in srgb, var(--primary) 45%, transparent);
+    }
+  }
+
   &-block { width: 100%; height: 40px; justify-content: center; font-size: 13.5px; }
+  &-sm { height: 28px; padding: 0 10px; font-size: 12px; }
+  &-icon { width: 32px; padding: 0; justify-content: center; }
   &.disabled { opacity: 0.45; pointer-events: none; }
 }
 
