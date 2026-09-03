@@ -796,6 +796,17 @@ public class SyslogUdpSenderService {
 
 **搜索演进**：MVP（MySQL LIKE + 标签，够用）→ 二期（Meilisearch：轻量、中文友好、Docker 一键起，个人项目最优解，不要上 ES）→ 三期（embedding 语义搜索，与 AI 模块共用向量设施）。
 
+**V2 落地实录（2026-09，方案 B 已上线，源码级核实的实战结论）**：
+
+- **落地形态**：`@vue/repl@4.7.2` 的 `Sandbox` 只读面板（不拉编辑器 chunk，核心 ~450KB 懒加载）+ 假浏览器外壳；`content` 列升 MEDIUMTEXT 存 `{files,entry,deps}` JSON；复制动作分化（单文件 / 按路径分节拼接 / jszip 下载）；文件夹拖拽整体入库（剥最外层目录、跳 node_modules）；6 条种子含 7 文件目录化组件，首屏即可预览。
+- **import map 两层**：`bundled` → 同源 `/repl-deps/{name}@{version}.esm.js`（构建期 esbuild 产物入 git，共享依赖全程 external 保单 Vue 实例）+ HEAD 探测；缺失回退 `esm.sh` 锁版本并 toast 明示。antd 必须带 `?external=vue&deps=dayjs@1.11.13`（默认构建 656 处根相对 `/vue@>=3.2.0` 导入绕过 import map → 双 Vue 实例白屏，已实测）。
+- **四个实战坑（均已修复，留档防复发）**：
+  1. **micro-app 沙箱 origin 陷阱**：沙箱内 `window.location.origin` 返回基座源（8000），拼出的 `/repl-deps` URL 在预览 iframe 原生模块加载器里 404 白屏；且 micro-app 代理沙箱内 fetch 重写到子应用源，HEAD 探测假阳性掩盖问题。根治：产物根一律 `new URL(import.meta.url).origin`——JS 引擎层面的真实模块 URL，任何沙箱代理改不了。
+  2. **antd external 子路径漏网**：esbuild 裸包名 `external` 连子路径放行，`@ant-design/icons-vue/es/icons/*` 与 `dayjs/plugin/*` 留在产物里绕过映射。预打包脚本已为实际用到的子路径生成 shim 产物并在清单 `subpaths` 登记精确键（优先于前缀映射）。
+  3. **iframe 高度塌陷**：repl 预览 iframe 的 `height:100%` 挂在 `flex:1 + min-height`（height:auto）容器上，CSS 规范下百分比解析失效回落默认 150px。改 `.iframe-container` 绝对定位 `inset:0` 铺满。
+  4. **沙箱内无 unplugin 自动注册**：种子代码里 kebab 的 `<a-table>` 解析失败渲染成空元素——入库代码必须显式导入 + PascalCase；demo 入口若依赖挂载时拉数据，别忘了真的调 `run()`（否则预览只剩表头）。
+- **已知边界**：dayjs 插件/语言包走 esm.sh 前缀映射，离线内网下带插件的 antd 预览会缺件（README 注明）；repl 的 TS 用 sucrase 只剥类型不检查，预览 ≠ typecheck。
+
 ### 5.4 AI 深度打通方案
 
 **架构原则：AI 是"后端网关 + 前端场景注入"的神经系统，不是聊天窗**。

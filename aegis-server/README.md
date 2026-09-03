@@ -58,7 +58,7 @@ mvn -pl aegis-admin -am package -DskipTests
 java -jar aegis-admin/target/aegis-admin-0.1.0.jar
 ```
 
-启动时自动完成：建 10 张表（幂等 `CREATE TABLE IF NOT EXISTS`）→ 灌种子数据（白名单配置、4 套内置模板、4 条资产种子，`INSERT IGNORE`）→ 清理上次异常中断的 RUNNING 任务。
+启动时自动完成：建 10 张表（幂等 `CREATE TABLE IF NOT EXISTS`，存量库补幂等 `ALTER`：asset_item.content 升 MEDIUMTEXT）→ 灌种子数据（白名单配置、4 套内置模板、6 条资产种子 V2，种子段先 `DELETE WHERE create_by='seed'` 再 `INSERT IGNORE` 保证形状可升级）→ 清理上次异常中断的 RUNNING 任务。
 
 看到这行就是起来了：
 
@@ -153,13 +153,34 @@ nc -kul 1514    # 另开终端监听 UDP 1514，页面上把目标填 127.0.0.1:
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/asset/items?current=1&size=20&kw=&type=&tag=` | 分页检索：`kw` 模糊命中名称/说明/正文，`type` 精确（snippet/component/function/doc/link），`tag` 精确（`FIND_IN_SET`，java 不误中 javascript）。按复制次数降序 |
-| POST | `/api/asset/items` | 新增资产；`tags` 逗号串（服务端小写去重，>8 个拒绝 `A0001`） |
-| PUT | `/api/asset/items/{id}` | 更新资产（不存在返回 `B0404`） |
+| GET | `/api/asset/items?current=1&size=20&kw=&type=&tag=` | 分页检索：`kw` 模糊命中名称/说明/正文（多文件 JSON 内联代码同样命中），`type` 精确（snippet/component/function/doc/link），`tag` 精确（`FIND_IN_SET`，java 不误中 javascript）。按复制次数降序 |
+| POST | `/api/asset/items` | 新增资产（V2 结构化请求体，见下）；`tags` 逗号串（服务端小写去重，>8 个拒绝 `A0001`） |
+| PUT | `/api/asset/items/{id}` | 更新资产（不存在返回 `B0404`；请求体同 POST） |
 | DELETE | `/api/asset/items/{id}` | 删除资产（逻辑删除，底账保留） |
 | POST | `/api/asset/items/{id}/copy` | 复制计数 +1（`setSql` 原子自增；**不打审计**——读语义高频打点，避免刷爆 op_log） |
 
-五类资产共一张 `asset_item` 表（差异只在 type 与展示形态）；正文 `content` TEXT（64KB，DTO `@Size(60000)` 前置拦截）。
+五类资产共一张 `asset_item` 表（差异只在 type 与展示形态）。V2 起 `content` 列 **MEDIUMTEXT（16MB）**，按类型分流存储：
+
+- `link`：URL 原文（可直接 LIKE 检索）；
+- 其余类型：JSON `{files:[{path,lang,code}], entry, deps:[{name,version,source}]}`（多文件目录化，git 模型平铺路径）。
+
+POST/PUT 请求体不再传 `content` 字符串，改传结构化字段：
+
+```jsonc
+{
+  "name": "ProSearchTable 检索表格", "type": "component", "lang": "vue",
+  "description": "…", "tags": "vue,table",
+  "url": "https://…",                  // link 必填，其余类型必须为空
+  "files": [                            // link 以外必填：≤100 个，单文件 code ≤200KB
+    { "path": "index.vue", "lang": "vue", "code": "…" },
+    { "path": "hooks/useColumns.ts", "lang": "ts", "code": "…" }
+  ],
+  "entry": "demo.vue",                  // 预览入口：必须命中 files 里的某个 path
+  "deps": [ { "name": "ant-design-vue", "version": "4.2.6", "source": "bundled" } ]
+}
+```
+
+服务端校验：path 禁 `..` 与前导 `/`（@Pattern）、跨文件去重、entry 必须命中、deps 按 name 去重；解析损坏的 content 返回 `A0001 资产正文格式损坏`。
 
 ## 配置说明
 
