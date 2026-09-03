@@ -5,7 +5,7 @@ import { useStore, type ImportMap, type ReplStore } from '@vue/repl'
 import type { SFCScriptCompileOptions } from 'vue/compiler-sfc'
 import { toast } from '@aegis/shared'
 import type { AssetDep, AssetFile, AssetItem } from '@/api/types'
-import { resolveImport, knownBundled, bundledFile } from '@/composables/useDepScan'
+import { resolveImport, knownBundled, bundledFile, bundledSubpaths } from '@/composables/useDepScan'
 
 /**
  * 在线预览沙箱（@vue/repl 只读模式：Sandbox 面板，不拉编辑器 chunk）。
@@ -31,14 +31,16 @@ const Sandbox = defineAsyncComponent(async () => {
 })
 
 /**
- * 预打包产物根（必须绝对 URL）：
- * - dev 直连子应用：文档源即子应用源，origin + '/repl-deps/' 命中 public 产物
- * - dev 经基座内嵌：micro-app iframe 沙箱的文档源是【基座】（iframe.src=基座地址），
- *   相对路径会把预览 iframe 的模块请求打到基座上 404；幸而 micro-app 把沙箱内
- *   location 代理成了子应用源，取 window.location.origin 锚回子应用真实源
- * - prod：同源 /child/asset-repo/ 静态路径，origin + BASE_URL 天然正确
+ * 预打包产物根（必须绝对 URL，且必须锚定【子应用真实源】）：
+ * - 取 origin 用 import.meta.url 而不是 window.location.origin——micro-app iframe 沙箱里
+ *   location.origin 仍返回基座源（iframe.src=基座地址），拼出的产物 URL 会在预览 iframe
+ *   里 404 白屏；而子应用模块永远从子应用源加载（micro-app 从 8001 拉 JS 进沙箱执行），
+ *   import.meta.url 是 JS 引擎层面的真实模块 URL，任何沙箱代理都改不了
+ * - 注意 HEAD 探测的假阳性坑：micro-app 会拦截沙箱内 fetch 重写到子应用源，所以
+ *   探测"成功"不代表 iframe 的原生模块加载器也能命中——URL 本身对才是根治
+ * - dev 直连子应用与 prod（BASE_URL=/child/asset-repo/）下两者等价，统一走此式
  */
-const DEPS_BASE = window.location.origin + import.meta.env.BASE_URL + 'repl-deps/'
+const DEPS_BASE = new URL(import.meta.url).origin + import.meta.env.BASE_URL + 'repl-deps/'
 
 /** HEAD 探测结果的模块级缓存：同一 URL 不重复探测（会话内产物不会凭空出现） */
 const probeCache = new Map<string, boolean>()
@@ -100,6 +102,11 @@ async function buildImportMap(declared: AssetDep[]): Promise<ImportMap> {
 
   for (const dep of deps) {
     imports[dep.name] = await resolveDepUrl(dep, fallbacks)
+  }
+  // antd 产物对 icons 子路径与 dayjs 插件保持 external（esbuild 裸包名 external 连子路径放行），
+  // 预打包脚本已生成 shim/插件产物并按精确键登记——精确键优先于前缀映射，长尾子路径仍走 esm.sh
+  for (const [key, file] of Object.entries(bundledSubpaths())) {
+    imports[key] = DEPS_BASE + file
   }
   const dayjs = deps.find((d) => d.name === 'dayjs')
   // dayjs 插件/语言包是子路径导入（dayjs/plugin/x）：前缀映射兜底走 esm.sh（在线可用；
@@ -310,7 +317,15 @@ watch(() => props.item.id, (id, old) => {
   min-height: 420px;
   position: relative;
 
-  // repl 预览是普通文档流 iframe，占满舞台
+  // repl 预览是普通文档流 iframe，占满舞台。不能走百分比高度链：
+  // stage 的高度来自 flex:1 + min-height（height 属性是 auto），规范上子元素
+  // height:100% 参照 auto 父级会失效 → container/iframe 双双回落默认 150px。
+  // 改绝对定位铺满（stage 已 position:relative，spin 同款手法），一劳永逸
+  :deep(.iframe-container) {
+    position: absolute;
+    inset: 0;
+  }
+
   :deep(iframe) {
     width: 100%;
     height: 100%;

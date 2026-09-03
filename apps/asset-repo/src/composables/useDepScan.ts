@@ -19,17 +19,29 @@ interface ManifestEntry {
   file: string
 }
 
-/** 平台预打包的依赖（name → 实际产物版本；es-module-shims 不是业务依赖，剔除） */
+/** manifest 的完整形状：包名 → 产物；subpaths 是 antd external 子路径（icons shim / dayjs 插件）的精确键登记。
+ *  必须 as unknown 两段断言：TS 对 JSON 推断出精确形状，subpaths 的值（Record<string,string>）
+ *  与包名键的 ManifestEntry 索引签名天然冲突，直接交叉断言编译不过 */
+type ManifestShape = Record<string, ManifestEntry> & { subpaths?: Record<string, string> }
+
+const manifestData = manifest as unknown as ManifestShape
+
+/** 平台预打包的依赖（name → 实际产物版本；es-module-shims 与 subpaths 不是业务依赖，剔除） */
 const BUNDLED: Record<string, string> = Object.fromEntries(
-  Object.entries(manifest as Record<string, ManifestEntry>)
-    .filter(([name]) => name !== 'es-module-shims')
+  Object.entries(manifestData)
+    .filter(([name]) => name !== 'es-module-shims' && name !== 'subpaths')
     .map(([name, m]) => [name, m.version]),
 )
 
 /** 预打包产物文件名（无产物返回 null，调用方走 CDN 回退） */
 export function bundledFile(name: string): string | null {
-  const m = (manifest as Record<string, ManifestEntry>)[name]
+  const m = (manifestData as Record<string, ManifestEntry>)[name]
   return m?.file ?? null
+}
+
+/** antd 产物 external 子路径（icons/dayjs 插件）的产物登记：导入说明符 → 文件名（精确键） */
+export function bundledSubpaths(): Record<string, string> {
+  return manifestData.subpaths ?? {}
 }
 
 /** 走 esm.sh 的常用依赖（锁版本；ant-design-vue 的 external 参数在预览层拼，这里只存名字） */

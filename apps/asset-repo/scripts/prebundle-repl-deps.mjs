@@ -99,6 +99,46 @@ cpSync(
 manifest['es-module-shims'] = { version: shimsVersion, file: `es-module-shims@${shimsVersion}.js` }
 console.log(`✔ es-module-shims@${shimsVersion}（直接拷贝 dist）`)
 
+/* ---------- antd 产物的 external 子路径补齐 ----------
+ * esbuild 的裸包名 external 会连子路径一起放行（与直觉相反）：antd 产物里因此残留
+ * @ant-design/icons-vue/es/icons/* 与 dayjs/plugin/* 的导入——不补齐 import map，
+ * 预览加载 antd 时模块解析直接失败。两类产物都经 import map 裸名引用根产物，单实例红线不破：
+ * - icons shim：从 icons 根产物 re-export（export { X, X as default }）
+ * - dayjs 插件：逐个 esbuild（external dayjs），插件内部的 require('dayjs') 走 import map
+ */
+const antdCode = readFileSync(join(outDir, manifest['ant-design-vue'].file), 'utf8')
+const subpaths = {}
+
+const iconNames = [...new Set([...antdCode.matchAll(/from"@ant-design\/icons-vue\/es\/icons\/([A-Za-z0-9_]+)"/g)].map((m) => m[1]))]
+const iconsDir = join(outDir, 'icons-vue', 'es', 'icons')
+mkdirSync(iconsDir, { recursive: true })
+for (const name of iconNames) {
+  writeFileSync(join(iconsDir, `${name}.js`), `export { ${name}, ${name} as default } from '@ant-design/icons-vue';\n`)
+  subpaths[`@ant-design/icons-vue/es/icons/${name}`] = `icons-vue/es/icons/${name}.js`
+}
+console.log(`✔ icons 子路径 shim ×${iconNames.length}`)
+
+const dayjsPlugins = [...new Set([...antdCode.matchAll(/from"dayjs\/plugin\/([a-zA-Z]+)"/g)].map((m) => m[1]))]
+for (const plugin of dayjsPlugins) {
+  const outfile = join(outDir, 'dayjs', 'plugin', `${plugin}.esm.js`)
+  mkdirSync(dirname(outfile), { recursive: true })
+  await build({
+    entryPoints: [resolveEntry('dayjs', `dayjs/plugin/${plugin}`)],
+    bundle: true,
+    format: 'esm',
+    platform: 'browser',
+    target: 'es2020',
+    minify: true,
+    legalComments: 'none',
+    external: ['dayjs'],
+    outfile,
+    logLevel: 'silent',
+  })
+  subpaths[`dayjs/plugin/${plugin}`] = `dayjs/plugin/${plugin}.esm.js`
+}
+console.log(`✔ dayjs 插件产物 ×${dayjsPlugins.length}`)
+manifest.subpaths = subpaths
+
 // 产物清单落盘两份：public/repl-deps/（运维可 curl 查看）+ src/api/（代码 import 的真源）。
 // Vite 不建议从 public/ import 文件，src 副本规避限制；两份由同一次调用写出，不会漂移
 const manifestJson = JSON.stringify(manifest, null, 2)
@@ -121,6 +161,14 @@ for (const { name } of TARGETS) {
   const bareVue = /from\s*["']vue["']/.test(code)
   const bareDayjs = /from\s*["']dayjs["']/.test(code)
   console.log(`  ${name}: bare vue=${bareVue} bare dayjs=${bareDayjs}`)
+}
+// antd 产物里每个 external 子路径都必须有对应产物登记，漏一个预览就断一件组件
+const subRefRe = /from"(@ant-design\/icons-vue\/es\/icons\/[A-Za-z0-9_]+|dayjs\/plugin\/[a-zA-Z]+)"/g
+for (const m of antdCode.matchAll(subRefRe)) {
+  if (!manifest.subpaths[m[1]]) {
+    console.error(`✘ antd 产物引用的子路径未登记产物: ${m[1]}`)
+    failed = true
+  }
 }
 if (failed) process.exit(1)
 console.log('\n全部产物自检通过；已存在的 public/repl-deps 目录内容：', readdirSync(outDir).join('、'))
