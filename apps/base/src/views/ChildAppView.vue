@@ -50,8 +50,9 @@ const failed = ref(false)
 function pushData(): void {
   const target = el.value as unknown as { data?: Record<string, unknown> } | null
   if (!target) return
-  const auth: AuthSnapshot | null = userStore.token
-    ? { token: userStore.token, user: userStore.userInfo! }
+  // token 与 userInfo 必须同时存在才下发完整登录态；避免 token 残留但 user 缓存损坏时下发 undefined
+  const auth: AuthSnapshot | null = userStore.token && userStore.userInfo
+    ? { token: userStore.token, user: userStore.userInfo }
     : null
   target.data = {
     [CHILD_DATA_KEYS.THEME]: appStore.themeSnapshot,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { App } from 'ant-design-vue'
 import { bindFeedback } from '@aegis/shared'
@@ -10,7 +10,7 @@ import ItemFormDrawer from '@/components/ItemFormDrawer.vue'
 import { useAssetRepo } from '@/composables/useAssetRepo'
 import { useShiki } from '@/composables/useShiki'
 import { getApiMode } from '@/api/mode'
-import type { AssetType } from '@/api/types'
+import { ASSET_TYPE_ICON, type AssetType } from '@/api/types'
 
 const { t } = useI18n()
 
@@ -28,6 +28,7 @@ const {
   selectedId,
   reload,
   openCreate,
+  cleanup,
 } = useAssetRepo()
 
 // Shiki 语法预加载藏进首屏：右栏第一次渲染代码时大概率已就绪
@@ -43,18 +44,21 @@ const typeOptions = computed(() => [
 ])
 const tagSelectOptions = computed(() => tagOptions.value.map((v) => ({ label: `#${v}`, value: v })))
 
-/** 类型 → 图标（与右栏详情共用同一张映射表，视觉语言一致） */
-const TYPE_ICON: Record<AssetType, string> = {
-  snippet: 'code',
-  component: 'box',
-  function: 'terminal',
-  doc: 'fileText',
-  link: 'link',
-}
+// 类型 → 图标从契约层统一导入，新增类型时只改一处
 
 onMounted(() => {
   void reload()
   preload()
+})
+
+onUnmounted(() => {
+  // 子应用被 micro-app 销毁时，取消未触发的搜索防抖定时器，避免内存泄漏与幽灵请求
+  cleanup()
+})
+
+// 基座设置抽屉切换 mock/real 后，数据源模式变化，列表应自动重查
+watch(getApiMode, () => {
+  void reload()
 })
 </script>
 
@@ -112,7 +116,7 @@ onMounted(() => {
             @click="selectedId = item.id"
           >
             <div class="item__top">
-              <AppIcon :name="TYPE_ICON[item.type]" :size="13" />
+              <AppIcon :name="ASSET_TYPE_ICON[item.type]" :size="13" />
               <span class="item__name">{{ item.name }}</span>
               <span class="item__count" :title="t('repo.copyCount', { n: item.copyCount })">
                 <AppIcon name="copy" :size="10" />

@@ -44,7 +44,7 @@ public class AssetItemService {
      * FIND_IN_SET 按整段精确比较，天然规避前缀歧义。
      */
     public ItemPageVO page(int current, int size, String kw, String type, String tag) {
-        String keyword = trimToNull(kw);
+        String keyword = escapeLike(trimToNull(kw));
         String typeVal = trimToNull(type);
         String tagVal = trimToNull(tag);
 
@@ -55,6 +55,8 @@ public class AssetItemService {
                 .and(keyword != null, w -> w.like(AssetItemDO::getName, keyword)
                         .or().like(AssetItemDO::getDescription, keyword)
                         .or().like(AssetItemDO::getContent, keyword))
+                // 对 LIKE 通配符 % _ 做转义，避免用户搜 "%" 匹配全部
+                .last(keyword != null, "ESCAPE '\\'")
                 .orderByDesc(AssetItemDO::getCopyCount)
                 .orderByDesc(AssetItemDO::getUpdateTime);
 
@@ -159,7 +161,8 @@ public class AssetItemService {
         Map<String, AssetFileDTO> byPath = new LinkedHashMap<>();
         for (AssetFileDTO f : raw) {
             String path = f.getPath() == null ? "" : f.getPath().trim();
-            if (path.startsWith("./")) {
+            // 剥除所有前导 "./"，防止 "././foo.vue" 残留前缀导致匹配失败
+            while (path.startsWith("./")) {
                 path = path.substring(2);
             }
             // 路径合法性：非空、非绝对路径、无 .. 段（防 "../escape" 写出资产根的语义）
@@ -199,7 +202,8 @@ public class AssetItemService {
     /** entry 单独走一遍 trim：与文件路径的规范化口径保持一致，比对才不会假性失配 */
     private String normalizeEntry(String entry) {
         String trimmed = trimToNull(entry);
-        if (trimmed != null && trimmed.startsWith("./")) {
+        // 剥除所有前导 "./"，与文件路径规范化口径保持一致
+        while (trimmed != null && trimmed.startsWith("./")) {
             trimmed = trimmed.substring(2);
         }
         return trimmed;
@@ -232,5 +236,16 @@ public class AssetItemService {
         }
         String trimmed = s.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /**
+     * 对 LIKE 通配符做转义：% _ 分别加反斜杠前缀，同时先把已有的 \ 转义成 \\
+     * 顺序不能换——必须先处理反斜杠，否则后面加的反斜杠会被再次转义。
+     */
+    private String escapeLike(String kw) {
+        if (kw == null) {
+            return null;
+        }
+        return kw.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 }

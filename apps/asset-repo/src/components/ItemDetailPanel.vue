@@ -6,8 +6,7 @@ import FileTree from '@/components/FileTree.vue'
 import PreviewSandbox from '@/components/PreviewSandbox.vue'
 import { useAssetRepo } from '@/composables/useAssetRepo'
 import { useShiki } from '@/composables/useShiki'
-import { isPreviewable } from '@/api/types'
-import type { AssetType } from '@/api/types'
+import { ASSET_TYPE_ICON, isPreviewable } from '@/api/types'
 
 /**
  * 右栏详情面板（双栏检索台的常驻区）。
@@ -18,14 +17,7 @@ const { t } = useI18n()
 const { selected, copyAll, copyFile, downloadZip, openEdit, remove, tagFilter } = useAssetRepo()
 const { highlight } = useShiki()
 
-/** 类型 → 图标（与左列共用同一张映射表，视觉语言一致） */
-const TYPE_ICON: Record<AssetType, string> = {
-  snippet: 'code',
-  component: 'box',
-  function: 'terminal',
-  doc: 'fileText',
-  link: 'link',
-}
+// 类型 → 图标从契约层统一导入，新增类型时只改一处
 
 /* ---------- 当前查看的文件（文件树选中态，随资产切换复位到入口文件） ---------- */
 
@@ -87,7 +79,7 @@ function onCopyMenu({ key }: { key: string | number }): void {
   <div v-else class="panel">
     <header class="panel__head">
       <div class="panel__title">
-        <AppIcon :name="TYPE_ICON[selected.type]" :size="15" />
+        <AppIcon :name="ASSET_TYPE_ICON[selected.type]" :size="15" />
         <h2>{{ selected.name }}</h2>
         <span class="type-badge" :class="`type-${selected.type}`">{{ t(`repo.types.${selected.type}`) }}</span>
         <span v-if="selected.type !== 'doc' && selected.type !== 'link' && selected.lang" class="lang-chip">{{

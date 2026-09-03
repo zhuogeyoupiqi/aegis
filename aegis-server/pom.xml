@@ -48,6 +48,19 @@
     <sa-token.version>1.46.0</sa-token.version>
   </properties>
 
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <!-- 保留方法参数名：审计切面的 {参数名} 占位符才能正确渲染 -->
+          <parameters>true</parameters>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+
   <dependencyManagement>
     <dependencies>
       <!-- 内部模块版本统一在这里管，子模块引依赖不写版本号（类比 pnpm catalog） -->

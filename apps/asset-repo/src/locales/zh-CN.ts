@@ -11,7 +11,6 @@ export default {
     tagPlaceholder: '按标签筛选',
     create: '新建资产',
     refresh: '刷新',
-    loadFailed: '资产列表加载失败',
 
     // 数据源只读徽标（控制点在基座设置抽屉，子应用页面禁止出现开关）
     sourceLabel: '数据源',
@@ -21,7 +20,6 @@ export default {
     // 左列列表
     listEmpty: '没有匹配的资产',
     listEmptyHint: '换个关键字试试，或新建一条',
-    copyCountShort: '{n} 次复制',
 
     // 右列详情
     detailEmptyTitle: '从左侧选择一条资产',
@@ -82,10 +80,8 @@ export default {
       tags: '标签',
       tagsPlaceholder: '输入后回车确认，最多 8 个',
       tagsHint: '保存时统一转小写去重，用于左侧筛选',
-      content: '正文',
-      contentRequired: '请输入正文内容',
+      // content / contentRequired / contentHint 等 V1 键已移除，文件正文在 V2 中按文件清单处理；contentPlaceholder 在文件区复用
       contentPlaceholder: '粘贴代码全文 / 文档内容',
-      contentHint: '代码按所选语言高亮展示',
       submit: '保 存',
       cancel: '取 消',
 

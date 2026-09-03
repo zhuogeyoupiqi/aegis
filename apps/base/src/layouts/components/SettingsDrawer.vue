@@ -41,10 +41,11 @@ function onLangChange(v: string | number): void {
  * "会话永远属于当前数据源"。logout 顺手销毁后端会话，失败不阻塞本地登出
  * （旧 token 若已无效，A0401 也会被 http.ts 处理成跳登录，殊途同归）。
  */
-function onApiModeChange(v: string | number): void {
+async function onApiModeChange(v: string | number): Promise<void> {
   appStore.prefs.apiMode = v as ApiMode
   if (userStore.token) {
-    userStore.logout()
+    // 等待本地 token / userInfo 清理完成后再跳转，否则路由守卫可能把登录页弹回工作台
+    await userStore.logout()
     appStore.pushToast(t('settings.apiModeResetToast'), 'info')
     router.push('/login')
   }

@@ -63,6 +63,14 @@ watch(kw, () => {
 // 类型/标签是离散选择，变更即查
 watch([typeFilter, tagFilter], reload)
 
+/** 清理副作用：组件卸载时取消未触发的防抖定时器，防止子应用销毁后仍发起请求 */
+function cleanup(): void {
+  if (kwTimer) {
+    clearTimeout(kwTimer)
+    kwTimer = null
+  }
+}
+
 /* ---------- 新建 / 编辑抽屉 ---------- */
 
 const drawerOpen = ref(false)
@@ -231,6 +239,7 @@ export function useAssetRepo() {
     selectedId,
     selected,
     reload,
+    cleanup,
     // 表单抽屉
     drawerOpen,
     editing,

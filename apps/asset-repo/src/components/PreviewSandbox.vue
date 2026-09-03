@@ -3,7 +3,7 @@ import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useStore, type ImportMap, type ReplStore } from '@vue/repl'
 import type { SFCScriptCompileOptions } from 'vue/compiler-sfc'
-import { toast } from '@aegis/shared'
+import { lastThemeSnapshot, toast } from '@aegis/shared'
 import type { AssetDep, AssetFile, AssetItem } from '@/api/types'
 import { resolveImport, knownBundled, bundledFile, bundledSubpaths } from '@/composables/useDepScan'
 
@@ -24,6 +24,9 @@ import { resolveImport, knownBundled, bundledFile, bundledSubpaths } from '@/com
 const props = defineProps<{ item: AssetItem }>()
 const { t } = useI18n()
 
+// 预览沙箱主题跟随基座：lastThemeSnapshot.mode 已是解析后的 light/dark
+const previewTheme = computed(() => (lastThemeSnapshot.value?.mode === 'dark' ? 'dark' : 'light'))
+
 // repl 核心 ~450KB，动态 import 懒加载（style.css 一起下沉，主包零增量）
 const Sandbox = defineAsyncComponent(async () => {
   await import('@vue/repl/style.css')
@@ -42,7 +45,7 @@ const Sandbox = defineAsyncComponent(async () => {
  */
 const DEPS_BASE = new URL(import.meta.url).origin + import.meta.env.BASE_URL + 'repl-deps/'
 
-/** HEAD 探测结果的模块级缓存：同一 URL 不重复探测（会话内产物不会凭空出现） */
+/** HEAD 探测缓存：每个 PreviewSandbox 实例独立一份，避免多实例互相污染 */
 const probeCache = new Map<string, boolean>()
 
 async function probe(url: string): Promise<boolean> {
@@ -165,6 +168,7 @@ function toReplFiles(files: AssetFile[]): Record<string, string> {
 /* ---------- store 装配 ---------- */
 
 const ready = ref(false)
+const loadError = ref<string | null>(null)
 const compileErrors = computed(() => store.errors.map((e) => String(e)).filter(Boolean))
 
 // builtinImportMap 先给空表（vue 映射在异步探测后 merge 进来）：默认表指 jsdelivr，
@@ -184,6 +188,7 @@ const store: ReplStore = useStore({
 // 在此注入一个指向虚拟文件系统的 fs；路径归一兼容 repl 键名的两种形态（src/ 前缀 / 绝对路径）
 // 关键实现细节：setFiles 的编译发生在 store.files 整体替换【之前】（先编译局部集再赋值），
 // 查找必须优先命中"即将灌入"的 pendingFiles，否则首轮编译一律找不到被引用的类型文件
+// 每个 PreviewSandbox 实例独立一份，避免多实例同时编译时互相覆盖
 let pendingFiles: Record<string, string> = {}
 const virtualRead = (file: string): string | undefined => {
   const key = file.replace(/^\/+/, '')
@@ -204,26 +209,44 @@ store.sfcOptions = {
 
 async function loadItem(item: AssetItem): Promise<void> {
   ready.value = false
+  loadError.value = null
   store.errors = []
-  // import-map.json 必须随文件集一起喂给 setFiles（repl 4.7 源码级结论）：
-  // setFiles 会整体替换 store.files，之后再设映射、或映射先设都会让它内部
-  // applyBuiltinImportMap 读到不存在的文件 → getImportMap 的 undefined.code
-  // 被吞成 "Syntax error in import-map.json"，且该错误无人清理会常驻面板
-  const map = await buildImportMap(item.deps)
-  const files: Record<string, string> = {
-    ...toReplFiles(item.files),
-    'import-map.json': JSON.stringify(map, null, 2),
+  try {
+    // import-map.json 必须随文件集一起喂给 setFiles（repl 4.7 源码级结论）：
+    // setFiles 会整体替换 store.files，之后再设映射、或映射先设都会让它内部
+    // applyBuiltinImportMap 读到不存在的文件 → getImportMap 的 undefined.code
+    // 被吞成 "Syntax error in import-map.json"，且该错误无人清理会常驻面板
+    const map = await buildImportMap(item.deps)
+    const files: Record<string, string> = {
+      ...toReplFiles(item.files),
+      'import-map.json': JSON.stringify(map, null, 2),
+    }
+    pendingFiles = files
+    await store.setFiles(files, 'src/' + item.entry)
+    ready.value = true
+  } catch (e) {
+    // 依赖探测失败、import map 构建失败、setFiles 编译失败都走这里，避免 spinner 永久挂死
+    loadError.value = e instanceof Error ? e.message : String(e)
   }
-  pendingFiles = files
-  await store.setFiles(files, 'src/' + item.entry)
-  ready.value = true
 }
 
 onMounted(() => void loadItem(props.item))
-// 切换资产时整包重载（import map 与文件集都可能完全不同）
-watch(() => props.item.id, (id, old) => {
-  if (id && id !== old) void loadItem(props.item)
-})
+// 切换资产或同资产内容变化（文件/依赖/入口）都重载预览
+watch(
+  () => props.item,
+  (cur, prev) => {
+    if (!cur.id) return
+    if (
+      cur.id !== prev?.id ||
+      cur.files !== prev.files ||
+      cur.deps !== prev.deps ||
+      cur.entry !== prev.entry
+    ) {
+      void loadItem(cur)
+    }
+  },
+  { deep: true },
+)
 </script>
 
 <template>
@@ -236,10 +259,12 @@ watch(() => props.item.id, (id, old) => {
     </div>
 
     <div class="sandbox__stage">
-      <a-spin v-if="!ready" class="sandbox__spin" :tip="t('repo.previewLoading')" />
+      <a-spin v-if="!ready && !loadError" class="sandbox__spin" :tip="t('repo.previewLoading')" />
+      <!-- 加载期异常（依赖探测、import map、setFiles 失败）：给出可读错误而不是 spinner 挂死 -->
+      <pre v-else-if="loadError" class="sandbox__errors">{{ loadError }}</pre>
       <!-- 编译错误面板：Sandbox 只显示运行时错误，编译错误在 store.errors -->
       <pre v-else-if="compileErrors.length" class="sandbox__errors">{{ compileErrors.join('\n\n') }}</pre>
-      <Sandbox v-else :store="store" theme="light" />
+      <Sandbox v-else :store="store" :theme="previewTheme" />
     </div>
   </div>
 </template>

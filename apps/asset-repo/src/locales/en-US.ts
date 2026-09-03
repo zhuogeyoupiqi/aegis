@@ -79,10 +79,8 @@ export default {
       tags: 'Tags',
       tagsPlaceholder: 'Type and press Enter, up to 8',
       tagsHint: 'Normalized to lowercase and deduped on save',
-      content: 'Content',
-      contentRequired: 'Please enter the content',
+      // content / contentRequired / contentHint are V1 keys removed; contentPlaceholder is reused in file section
       contentPlaceholder: 'Paste code / markdown',
-      contentHint: 'Code is highlighted by the selected language',
       submit: 'Save',
       cancel: 'Cancel',
 

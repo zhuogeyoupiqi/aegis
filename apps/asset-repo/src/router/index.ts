@@ -7,6 +7,8 @@ const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     { path: '/', name: 'repo', component: AssetRepoView },
+    // 基座当前把 /asset/repo 映射到子应用 #/repo，先友好重定向，后续若扩展子路由再替换
+    { path: '/repo', redirect: '/' },
     // 后续页面（漏洞知识库等）在这里追加路由
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],

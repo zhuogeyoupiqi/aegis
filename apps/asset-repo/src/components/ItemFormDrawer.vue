@@ -58,7 +58,8 @@ const entryOptions = computed(() =>
 
 const rules = computed(() => ({
   name: [{ required: true, message: t('repo.form.nameRequired'), trigger: 'blur' }],
-  url: [{ required: true, message: t('repo.form.urlRequired'), trigger: 'blur' }],
+  // url 只对 link 类型生效；其他类型不渲染该字段，也不校验
+  url: formState.type === 'link' ? [{ required: true, message: t('repo.form.urlRequired'), trigger: 'blur' }] : [],
 }))
 
 /** 代码类资产才显示语言选择；doc 固定 md、link 无语言——语义在类型上，不重复让用户选 */
@@ -112,14 +113,18 @@ function removeFile(path: string): void {
   if (activePath.value === path) activePath.value = files.value[Math.max(0, idx - 1)]?.path ?? null
 }
 
-/** 路径编辑后同步语言探测（改扩展名 → 语言跟着变，省一次手动选） */
+/** 路径编辑后同步语言探测，并同步 activePath，避免改名后文件树高亮丢失 */
 watch(
   () => activeFile.value?.path,
-  (p) => {
+  (p, prev) => {
     const f = activeFile.value
     if (!f || !p) return
     const lang = langFromPath(p)
     if (lang) f.lang = lang
+    // 当前活动文件被重命名时，把选中 key 一起迁到新路径，否则树高亮与后续切回都会失效
+    if (prev && activePath.value === prev) {
+      activePath.value = p
+    }
   },
 )
 

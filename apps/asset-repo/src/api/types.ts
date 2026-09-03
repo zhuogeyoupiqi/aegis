@@ -85,3 +85,12 @@ export function isPreviewable(item: Pick<AssetItem, 'entry' | 'deps'>): boolean 
   if (!item.entry || !item.entry.endsWith('.vue')) return false
   return item.deps.some((d) => d.name === 'vue')
 }
+
+/** 资产类型 → 图标名：左列列表与右栏详情共用，避免新增类型时漏改一处 */
+export const ASSET_TYPE_ICON: Record<AssetType, string> = {
+  snippet: 'code',
+  component: 'box',
+  function: 'terminal',
+  doc: 'fileText',
+  link: 'link',
+}

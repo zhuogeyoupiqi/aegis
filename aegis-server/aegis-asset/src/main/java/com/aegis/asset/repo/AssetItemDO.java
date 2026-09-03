@@ -1,6 +1,8 @@
 package com.aegis.asset.repo;
 
 import com.aegis.framework.mybatis.BaseEntity;
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 /**
@@ -19,10 +21,18 @@ public class AssetItemDO extends BaseEntity {
     /** 类型：snippet/component/function/doc/link */
     private String type;
 
-    /** 代码语言（code 类资产用，前端 Shiki 按它选语法；doc 固定 md；link 为空） */
+    /**
+     * 代码语言（code 类资产用，前端 Shiki 按它选语法；doc 固定 md；link 为空）。
+     * updateStrategy = ALWAYS：允许 updateById 把该字段显式更新为 null（清空语言时落库）。
+     */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String lang;
 
-    /** 一句话说明（列表里帮用户回忆"这条是干嘛的"） */
+    /**
+     * 一句话说明（列表里帮用户回忆"这条是干嘛的"）。
+     * updateStrategy = ALWAYS：允许 updateById 把该字段显式更新为 null（清空说明时落库）。
+     */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String description;
 
     /** 正文：代码全文 / markdown 文档 / 链接 URL */

@@ -38,10 +38,15 @@ let loading: Promise<void> | null = null
 /** 触发预加载（视图 setup 里调一次，把语法加载的耗时藏进首屏） */
 function preload(): void {
   if (!loading) {
-    loading = createHighlighter({ langs: [...LANGS], themes: [...THEMES] }).then((h) => {
-      highlighter = h
-      ready.value = true
-    })
+    loading = createHighlighter({ langs: [...LANGS], themes: [...THEMES] })
+      .then((h) => {
+        highlighter = h
+        ready.value = true
+      })
+      .catch(() => {
+        // 语法/主题资源加载失败时：高亮退化为纯文本，避免未处理 rejection
+        ready.value = false
+      })
   }
 }
 
